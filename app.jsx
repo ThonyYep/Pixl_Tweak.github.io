@@ -354,9 +354,9 @@ function App() {
             onStart={() => setMode("converting")}
             onAddFiles={openAddFilePicker} />
         );
-      case "resize":   return <ResizeTab   t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} />;
-      case "compress": return <CompressTab t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} />;
-      case "crop":     return <CropTab     t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} />;
+      case "resize":   return <ResizeTab   t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} onClearFiles={() => setFiles([])} />;
+      case "compress": return <CompressTab t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} onClearFiles={() => setFiles([])} />;
+      case "crop":     return <CropTab     t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} onClearFiles={() => setFiles([])} />;
       default:         return null;
     }
   }
