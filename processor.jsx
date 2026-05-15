@@ -371,8 +371,10 @@ async function processConvert(files, settings, onProgress, onDone) {
 }
 
 async function processResize(files, resizeSettings, onProgress, onDone) {
-  const { w, h, fit, upscale } = resizeSettings;
-  const isMulti    = files.length > 1;
+  const { w, h, fit, upscale, format = "WEBP", transparent = true } = resizeSettings;
+  const extMap  = { JPG: "jpg", PNG: "png", WEBP: "webp" };
+  const ext     = extMap[format] || "webp";
+  const isMulti = files.length > 1;
   const zipEntries = [];
 
   for (const file of files) {
@@ -384,8 +386,8 @@ async function processResize(files, resizeSettings, onProgress, onDone) {
       let tw = w, th = h;
       if (!upscale) { tw = Math.min(w, sw); th = Math.min(h, sh); }
       const canvas  = resizeCanvas(src, tw, th, fit || 0);
-      const blob    = await canvasToBlob(canvas, "WEBP", 90, true);
-      const outName = file.name.replace(/\.[^/.]+$/, "") + "_resized.webp";
+      const blob    = await canvasToBlob(canvas, format, 90, transparent);
+      const outName = file.name.replace(/\.[^/.]+$/, "") + "_resized." + ext;
       onProgress(file.id, 85);
       if (isMulti) zipEntries.push({ path: outName, blob });
       else downloadBlob(blob, outName);
