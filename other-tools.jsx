@@ -95,6 +95,8 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles }) {
   const [lock,        setLock]        = React.useState(true);
   const [fit,         setFit]         = React.useState(0);
   const [upscale,     setUpscale]     = React.useState(false);
+  const [format,      setFormat]      = React.useState("WEBP");
+  const [transparent, setTransparent] = React.useState(true);
   const [processing,  setProcessing]  = React.useState(false);
   const [origDims,    setOrigDims]    = React.useState({ w:0, h:0 });
 
@@ -125,7 +127,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles }) {
 
   function handleApply() {
     setProcessing(true);
-    Processor.processResize(files, { w, h, fit, upscale },
+    Processor.processResize(files, { w, h, fit, upscale, format, transparent },
       () => {}, () => setProcessing(false));
   }
 
@@ -194,6 +196,29 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles }) {
             ))}
           </div>
         </div>
+
+        <div className="field">
+          <label>{t.resize.outputFormat}</label>
+          <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr 1fr" }}>
+            {["JPG","PNG","WEBP"].map(fmt => (
+              <button key={fmt} className={"preset " + (format===fmt?"on":"")}
+                onClick={() => setFormat(fmt)}>
+                <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace" }}>{fmt}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {(format === "PNG" || format === "WEBP") && (
+          <div className="field">
+            <div className="toggle-row">
+              <span>{t.resize.transparent}</span>
+              <div className={"toggle " + (transparent?"on":"")} onClick={() => setTransparent(!transparent)}>
+                <div className="dot" />
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="field">
           <div className="toggle-row">
