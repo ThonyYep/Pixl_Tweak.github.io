@@ -1,8 +1,0 @@
-{
-  "name": "pixl-tweak",
-  "version": "2.4.1",
-  "private": true,
-  "scripts": {
-    "dev": "npx serve . --listen 3000"
-  }
-}
