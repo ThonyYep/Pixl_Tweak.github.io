@@ -74,6 +74,8 @@ const COPY = {
         "Exact size, may distort",
       ],
       upscale: "Allow upscaling",
+      outputFormat: "Output format",
+      transparent: "Preserve transparency",
       apply: "Apply",
     },
 
@@ -196,6 +198,8 @@ const COPY = {
         "Exacto, puede distorsionar",
       ],
       upscale: "Permitir ampliación",
+      outputFormat: "Formato de salida",
+      transparent: "Conservar transparencia",
       apply: "Aplicar",
     },
 
