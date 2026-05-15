@@ -20,51 +20,48 @@ function FilePill({ file, selected, onClick }) {
   );
 }
 
-function FileStrip({ files, selectedIdx, onSelect, onAdd, onClear, clearLabel }) {
-  const [clearHover, setClearHover] = React.useState(false);
+function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
   return (
-    <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
-      {/* Header row — only shown when there are files and onClear is provided */}
-      {onClear && files.length > 0 && (
-        <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
-          <button
-            onClick={onClear}
-            onMouseEnter={() => setClearHover(true)}
-            onMouseLeave={() => setClearHover(false)}
-            style={{
-              height:28, border:0, borderRadius:8, cursor:"pointer",
-              display:"flex", alignItems:"center", gap:5,
-              padding: clearHover ? "0 10px 0 8px" : "0 4px",
-              background: clearHover ? "var(--coral-soft)" : "transparent",
-              color: clearHover ? "var(--coral-ink)" : "var(--ink-3)",
-              transition:"background .2s, color .2s, padding .2s", overflow:"hidden",
-            }}>
-            <Icon name="cancel-square" size={16} />
-            <span style={{
-              maxWidth: clearHover ? 160 : 0,
-              opacity: clearHover ? 1 : 0,
-              transition:"max-width .22s ease, opacity .18s ease",
-              overflow:"hidden", fontSize:12, fontWeight:600, whiteSpace:"nowrap",
-            }}>
-              {clearLabel}
-            </span>
-          </button>
-        </div>
-      )}
-      {/* Pill strip */}
-      <div style={{ display:"flex", gap:6, paddingBottom:10, overflowX:"auto", alignItems:"center" }}>
-        {files.map((f,i) => (
-          <FilePill key={f.id} file={f} selected={i===selectedIdx} onClick={() => onSelect(i)} />
-        ))}
-        <button onClick={onAdd} title="Add images" style={{
-          width:44, height:44, flexShrink:0, border:"1.5px dashed var(--line)",
-          borderRadius:8, background:"transparent", cursor:"pointer", color:"var(--ink-3)",
-          display:"flex", alignItems:"center", justifyContent:"center",
-        }}>
-          <Icon name="plus" size={16} />
-        </button>
-      </div>
+    <div style={{ display:"flex", gap:6, paddingBottom:10, overflowX:"auto", alignItems:"center" }}>
+      {files.map((f,i) => (
+        <FilePill key={f.id} file={f} selected={i===selectedIdx} onClick={() => onSelect(i)} />
+      ))}
+      <button onClick={onAdd} title="Add images" style={{
+        width:44, height:44, flexShrink:0, border:"1.5px dashed var(--line)",
+        borderRadius:8, background:"transparent", cursor:"pointer", color:"var(--ink-3)",
+        display:"flex", alignItems:"center", justifyContent:"center",
+      }}>
+        <Icon name="plus" size={16} />
+      </button>
     </div>
+  );
+}
+
+function ClearAllButton({ onClear, label }) {
+  const [hover, setHover] = React.useState(false);
+  return (
+    <button
+      onClick={onClear}
+      onMouseEnter={() => setHover(true)}
+      onMouseLeave={() => setHover(false)}
+      style={{
+        height:28, border:0, borderRadius:8, cursor:"pointer",
+        display:"flex", alignItems:"center", gap:5,
+        padding: hover ? "0 10px 0 8px" : "0 4px",
+        background: hover ? "var(--coral-soft)" : "transparent",
+        color: hover ? "var(--coral-ink)" : "var(--ink-3)",
+        transition:"background .2s, color .2s, padding .2s", overflow:"hidden",
+      }}>
+      <Icon name="cancel-square" size={16} />
+      <span style={{
+        maxWidth: hover ? 160 : 0,
+        opacity: hover ? 1 : 0,
+        transition:"max-width .22s ease, opacity .18s ease",
+        overflow:"hidden", fontSize:12, fontWeight:600, whiteSpace:"nowrap",
+      }}>
+        {label}
+      </span>
+    </button>
   );
 }
 
@@ -167,13 +164,15 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   return (
     <div className="tool-stage">
       <div>
-        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles}
-          onClear={onClearFiles} clearLabel={t.convert.clearAll} />
+        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            <div style={{ display:"flex" }}>
+              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} />
+            </div>
             <div style={{
               position:"relative", overflow:"hidden",
               background:"var(--surface-1,white)", borderRadius:"var(--radius-lg,12px)",
@@ -315,13 +314,15 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   return (
     <div className="tool-stage">
       <div>
-        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles}
-          onClear={onClearFiles} clearLabel={t.convert.clearAll} />
+        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
         ) : (
           <>
+            <div style={{ display:"flex", marginBottom:4 }}>
+              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} />
+            </div>
             <div style={{
               minHeight:200, marginBottom:14, position:"relative",
               display:"flex", alignItems:"center", justifyContent:"center",
@@ -494,17 +495,26 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
     });
   }, [imageDims?.w, imageDims?.h, ratio]);
 
+  // Extract x/y from both mouse and touch events
+  const getPoint = ev => {
+    const src = ev.touches ? ev.touches[0] : ev;
+    return { x: src.clientX, y: src.clientY };
+  };
+
   const startDrag = (e, type) => {
     e.preventDefault(); e.stopPropagation();
     const el = containerRef.current; if (!el) return;
     const rect = el.getBoundingClientRect();
     const cAsp = rect.width / rect.height;
     const asp  = ASPECT_NUMS[ratio];
-    const ox = e.clientX, oy = e.clientY, sc = { ...crop };
+    const { x: ox, y: oy } = getPoint(e);
+    const sc = { ...crop };
 
     const onMove = ev => {
-      const dx = (ev.clientX - ox) / rect.width  * 100;
-      const dy = (ev.clientY - oy) / rect.height * 100;
+      if (ev.cancelable) ev.preventDefault();
+      const { x, y } = getPoint(ev);
+      const dx = (x - ox) / rect.width  * 100;
+      const dy = (y - oy) / rect.height * 100;
       let { x, y, w, h } = { ...sc };
       const ib = imgBoundsRef.current;
       const targetR = asp ? asp / cAsp : null;
@@ -569,16 +579,26 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
 
       updateCrop({ x, y, w, h });
     };
-    const onUp = () => { window.removeEventListener("mousemove",onMove); window.removeEventListener("mouseup",onUp); };
-    window.addEventListener("mousemove",onMove);
-    window.addEventListener("mouseup",onUp);
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup",   onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend",  onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup",   onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend",  onUp);
   };
 
   const hs = { position:"absolute", width:10, height:10, background:"white", border:"1.5px solid rgba(0,0,0,.35)", borderRadius:2, zIndex:2 };
   const br = "var(--radius-lg,12px)";
 
+  // Shared handler — fires on both mouse and touch
+  const drag = (type) => (e) => { e.stopPropagation(); startDrag(e, type); };
+
   return (
-    <div ref={containerRef} style={{ position:"absolute", inset:0, userSelect:"none" }}>
+    <div ref={containerRef} style={{ position:"absolute", inset:0, userSelect:"none", touchAction:"none" }}>
 
       {/* ── Dark overlay (clipped with rounded corners, no handles here) ── */}
       <div style={{ position:"absolute", inset:0, borderRadius:br, overflow:"hidden", pointerEvents:"none" }}>
@@ -591,21 +611,21 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
       {/* ── Crop selection box + handles (not clipped, handles can bleed) ── */}
       <div
         style={{ position:"absolute", left:`${crop.x}%`, top:`${crop.y}%`, width:`${crop.w}%`, height:`${crop.h}%`, border:"1.5px solid rgba(255,255,255,.9)", boxSizing:"border-box", cursor:"move" }}
-        onMouseDown={e => startDrag(e,"move")}>
+        onMouseDown={e => startDrag(e,"move")} onTouchStart={e => startDrag(e,"move")}>
         {[33.33,66.66].map(p => (
           <React.Fragment key={p}>
             <div style={{ position:"absolute", left:`${p}%`, top:0, bottom:0, width:1, background:"rgba(255,255,255,.2)", pointerEvents:"none" }} />
             <div style={{ position:"absolute", top:`${p}%`, left:0, right:0, height:1, background:"rgba(255,255,255,.2)", pointerEvents:"none" }} />
           </React.Fragment>
         ))}
-        <div style={{...hs, top:-5,   left:-5,               cursor:"nwse-resize"}} onMouseDown={e=>{e.stopPropagation();startDrag(e,"tl");}} />
-        <div style={{...hs, top:-5,   left:"calc(50% - 5px)",cursor:"ns-resize"}}   onMouseDown={e=>{e.stopPropagation();startDrag(e,"tc");}} />
-        <div style={{...hs, top:-5,   right:-5,              cursor:"nesw-resize"}} onMouseDown={e=>{e.stopPropagation();startDrag(e,"tr");}} />
-        <div style={{...hs, top:"calc(50% - 5px)", left:-5,  cursor:"ew-resize"}}   onMouseDown={e=>{e.stopPropagation();startDrag(e,"ml");}} />
-        <div style={{...hs, top:"calc(50% - 5px)", right:-5, cursor:"ew-resize"}}   onMouseDown={e=>{e.stopPropagation();startDrag(e,"mr");}} />
-        <div style={{...hs, bottom:-5,left:-5,               cursor:"nesw-resize"}} onMouseDown={e=>{e.stopPropagation();startDrag(e,"bl");}} />
-        <div style={{...hs, bottom:-5,left:"calc(50% - 5px)",cursor:"ns-resize"}}   onMouseDown={e=>{e.stopPropagation();startDrag(e,"bc");}} />
-        <div style={{...hs, bottom:-5,right:-5,              cursor:"nwse-resize"}} onMouseDown={e=>{e.stopPropagation();startDrag(e,"br");}} />
+        <div style={{...hs, top:-5,   left:-5,               cursor:"nwse-resize"}} onMouseDown={drag("tl")} onTouchStart={drag("tl")} />
+        <div style={{...hs, top:-5,   left:"calc(50% - 5px)",cursor:"ns-resize"}}   onMouseDown={drag("tc")} onTouchStart={drag("tc")} />
+        <div style={{...hs, top:-5,   right:-5,              cursor:"nesw-resize"}} onMouseDown={drag("tr")} onTouchStart={drag("tr")} />
+        <div style={{...hs, top:"calc(50% - 5px)", left:-5,  cursor:"ew-resize"}}   onMouseDown={drag("ml")} onTouchStart={drag("ml")} />
+        <div style={{...hs, top:"calc(50% - 5px)", right:-5, cursor:"ew-resize"}}   onMouseDown={drag("mr")} onTouchStart={drag("mr")} />
+        <div style={{...hs, bottom:-5,left:-5,               cursor:"nesw-resize"}} onMouseDown={drag("bl")} onTouchStart={drag("bl")} />
+        <div style={{...hs, bottom:-5,left:"calc(50% - 5px)",cursor:"ns-resize"}}   onMouseDown={drag("bc")} onTouchStart={drag("bc")} />
+        <div style={{...hs, bottom:-5,right:-5,              cursor:"nwse-resize"}} onMouseDown={drag("br")} onTouchStart={drag("br")} />
         <div style={{ position:"absolute", left:"50%", top:"50%", transform:"translate(-50%,-50%)", width:20, height:20, borderRadius:"50%", background:"rgba(255,255,255,.15)", border:"1.5px solid rgba(255,255,255,.7)", pointerEvents:"none" }} />
         <div style={{ position:"absolute", bottom:6, right:6, background:"rgba(0,0,0,.6)", color:"white", padding:"2px 7px", borderRadius:5, fontFamily:"JetBrains Mono,monospace", fontSize:10.5, fontWeight:600, pointerEvents:"none" }}>
           {ratioLabel}
@@ -665,32 +685,48 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <FileStrip
           files={files} selectedIdx={idx}
           onSelect={i => { setSelectedIdx(i); setResetKey(k => k + 1); }}
-          onAdd={onAddFiles}
-          onClear={onClearFiles} clearLabel={t.convert.clearAll} />
+          onAdd={onAddFiles} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
         ) : (
-          /* 12px padding gives crop handles room to render outside the image edge */
-          <div style={{ padding:12 }}>
-            <div style={{ position:"relative", minHeight:360, overflow:"visible", borderRadius:"var(--radius-lg,12px)", background:"var(--surface-1,white)", border:"1.5px solid var(--line)" }}>
-              {/* Source image — transform applied for rotation & flip preview */}
-              {fileUrl ? (
-                <img src={fileUrl} alt="" style={{
-                  position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain",
-                  transform:`rotate(${rotation}deg) scale(${flipH?-1:1},${flipV?-1:1})`,
-                  transition:"transform .35s cubic-bezier(.32,1.6,.42,1)",
-                }} />
-              ) : selectedFile ? (
-                <div style={{
-                  position:"absolute", inset:0,
-                  background:`linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
-                  transform:`rotate(${rotation}deg) scale(${flipH?-1:1},${flipV?-1:1})`,
-                  transition:"transform .35s cubic-bezier(.32,1.6,.42,1)",
-                }} />
-              ) : null}
-              {/* Crop overlay — position:absolute;inset:0 relative to this container */}
-              <CropCanvas key={resetKey} ratio={ratio} ratioLabel={ratios[ratio]} imageDims={origDims} onCropChange={setCropState} />
+          <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+            <div style={{ display:"flex" }}>
+              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} />
+            </div>
+            {/* 12px padding gives crop handles room to render outside the image edge */}
+            <div style={{ padding:12 }}>
+              <div style={{ position:"relative", minHeight:360, overflow:"visible", borderRadius:"var(--radius-lg,12px)", border:"1.5px solid var(--line)" }}>
+                {/* Image layer — clipped to rounded corners so no bleed-out */}
+                <div style={{ position:"absolute", inset:0, borderRadius:"var(--radius-lg,12px)", overflow:"hidden", background:"var(--surface-1,white)" }}>
+                  {fileUrl ? (
+                    <img src={fileUrl} alt="" style={{
+                      position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain",
+                      transform:`rotate(${rotation}deg) scale(${flipH?-1:1},${flipV?-1:1})`,
+                      transition:"transform .35s cubic-bezier(.32,1.6,.42,1)",
+                    }} />
+                  ) : selectedFile ? (
+                    <div style={{
+                      position:"absolute", inset:0,
+                      background:`linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
+                      transform:`rotate(${rotation}deg) scale(${flipH?-1:1},${flipV?-1:1})`,
+                      transition:"transform .35s cubic-bezier(.32,1.6,.42,1)",
+                    }} />
+                  ) : null}
+                </div>
+                {/* Crop overlay — NOT clipped so handles can bleed outside */}
+                <CropCanvas key={resetKey} ratio={ratio} ratioLabel={ratios[ratio]} imageDims={origDims} onCropChange={setCropState} />
+              </div>
+            </div>
+            {/* Before → after dimensions */}
+            <div style={{ fontSize:12, color:"var(--ink-3)", textAlign:"center", fontFamily:"JetBrains Mono,monospace" }}>
+              {origDims.w > 0 ? `${origDims.w}×${origDims.h} px` : "—"}
+              {" → "}
+              <span style={{ color:"var(--coral-ink,var(--coral))", fontWeight:600 }}>
+                {origDims.w > 0
+                  ? `${Math.round(cropState.w / 100 * origDims.w)}×${Math.round(cropState.h / 100 * origDims.h)} px`
+                  : "—"}
+              </span>
             </div>
           </div>
         )}
@@ -756,6 +792,7 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     </div>
   );
 }
+
 window.ResizeTab   = ResizeTab;
 window.CompressTab = CompressTab;
 window.CropTab     = CropTab;
