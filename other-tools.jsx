@@ -512,9 +512,9 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
 
     const onMove = ev => {
       if (ev.cancelable) ev.preventDefault();
-      const { x, y } = getPoint(ev);
-      const dx = (x - ox) / rect.width  * 100;
-      const dy = (y - oy) / rect.height * 100;
+      const { x: px, y: py } = getPoint(ev);
+      const dx = (px - ox) / rect.width  * 100;
+      const dy = (py - oy) / rect.height * 100;
       let { x, y, w, h } = { ...sc };
       const ib = imgBoundsRef.current;
       const targetR = asp ? asp / cAsp : null;
