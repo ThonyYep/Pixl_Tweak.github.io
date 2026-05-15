@@ -20,19 +20,50 @@ function FilePill({ file, selected, onClick }) {
   );
 }
 
-function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
+function FileStrip({ files, selectedIdx, onSelect, onAdd, onClear, clearLabel }) {
+  const [clearHover, setClearHover] = React.useState(false);
   return (
-    <div style={{ display:"flex", gap:6, paddingBottom:10, overflowX:"auto", alignItems:"center" }}>
-      {files.map((f,i) => (
-        <FilePill key={f.id} file={f} selected={i===selectedIdx} onClick={() => onSelect(i)} />
-      ))}
-      <button onClick={onAdd} title="Add images" style={{
-        width:44, height:44, flexShrink:0, border:"1.5px dashed var(--line)",
-        borderRadius:8, background:"transparent", cursor:"pointer", color:"var(--ink-3)",
-        display:"flex", alignItems:"center", justifyContent:"center",
-      }}>
-        <Icon name="plus" size={16} />
-      </button>
+    <div style={{ display:"flex", flexDirection:"column", gap:0 }}>
+      {/* Header row — only shown when there are files and onClear is provided */}
+      {onClear && files.length > 0 && (
+        <div style={{ display:"flex", justifyContent:"flex-end", marginBottom:4 }}>
+          <button
+            onClick={onClear}
+            onMouseEnter={() => setClearHover(true)}
+            onMouseLeave={() => setClearHover(false)}
+            style={{
+              height:28, border:0, borderRadius:8, cursor:"pointer",
+              display:"flex", alignItems:"center", gap:5,
+              padding: clearHover ? "0 10px 0 8px" : "0 4px",
+              background: clearHover ? "var(--coral-soft)" : "transparent",
+              color: clearHover ? "var(--coral-ink)" : "var(--ink-3)",
+              transition:"background .2s, color .2s, padding .2s", overflow:"hidden",
+            }}>
+            <Icon name="cancel-square" size={16} />
+            <span style={{
+              maxWidth: clearHover ? 160 : 0,
+              opacity: clearHover ? 1 : 0,
+              transition:"max-width .22s ease, opacity .18s ease",
+              overflow:"hidden", fontSize:12, fontWeight:600, whiteSpace:"nowrap",
+            }}>
+              {clearLabel}
+            </span>
+          </button>
+        </div>
+      )}
+      {/* Pill strip */}
+      <div style={{ display:"flex", gap:6, paddingBottom:10, overflowX:"auto", alignItems:"center" }}>
+        {files.map((f,i) => (
+          <FilePill key={f.id} file={f} selected={i===selectedIdx} onClick={() => onSelect(i)} />
+        ))}
+        <button onClick={onAdd} title="Add images" style={{
+          width:44, height:44, flexShrink:0, border:"1.5px dashed var(--line)",
+          borderRadius:8, background:"transparent", cursor:"pointer", color:"var(--ink-3)",
+          display:"flex", alignItems:"center", justifyContent:"center",
+        }}>
+          <Icon name="plus" size={16} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -88,7 +119,7 @@ function FitButton({ label, tooltip, active, onClick }) {
   );
 }
 
-function ResizeTab({ t, files, onAddFiles, onDropFiles }) {
+function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
   const [w,           setW]           = React.useState(1280);
   const [h,           setH]           = React.useState(720);
@@ -136,7 +167,8 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles }) {
   return (
     <div className="tool-stage">
       <div>
-        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} />
+        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles}
+          onClear={onClearFiles} clearLabel={t.convert.clearAll} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
@@ -251,7 +283,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles }) {
 
 // ── Compress Tab ──────────────────────────────────────────────────────────────
 
-function CompressTab({ t, files, onAddFiles, onDropFiles }) {
+function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx,  setSelectedIdx]  = React.useState(0);
   const [target,       setTarget]       = React.useState(0);
   const [quality,      setQuality]      = React.useState(72);
@@ -283,7 +315,8 @@ function CompressTab({ t, files, onAddFiles, onDropFiles }) {
   return (
     <div className="tool-stage">
       <div>
-        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} />
+        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles}
+          onClear={onClearFiles} clearLabel={t.convert.clearAll} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
@@ -584,7 +617,7 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
 
 // ── Crop Tab ──────────────────────────────────────────────────────────────────
 
-function CropTab({ t, files, onAddFiles, onDropFiles }) {
+function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
   const [ratio,       setRatio]       = React.useState(0);
   const [rotation,    setRotation]    = React.useState(0);
@@ -632,7 +665,8 @@ function CropTab({ t, files, onAddFiles, onDropFiles }) {
         <FileStrip
           files={files} selectedIdx={idx}
           onSelect={i => { setSelectedIdx(i); setResetKey(k => k + 1); }}
-          onAdd={onAddFiles} />
+          onAdd={onAddFiles}
+          onClear={onClearFiles} clearLabel={t.convert.clearAll} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
@@ -722,7 +756,6 @@ function CropTab({ t, files, onAddFiles, onDropFiles }) {
     </div>
   );
 }
-
 window.ResizeTab   = ResizeTab;
 window.CompressTab = CompressTab;
 window.CropTab     = CropTab;
