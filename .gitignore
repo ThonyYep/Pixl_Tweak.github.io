@@ -1,0 +1,15 @@
+# Claude Code local settings and preview config
+.claude/
+
+# Dependencies (npm run dev uses npx, but just in case)
+node_modules/
+
+# OS cruft
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Editors
+.vscode/
+.idea/
+*.swp
