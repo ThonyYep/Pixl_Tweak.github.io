@@ -1,20 +1,13 @@
 // app.jsx — main shell
 
-// Look-and-feel values that used to live in the prototyping host's tweak panel.
-// That panel only ever opened on a postMessage from a parent frame, so on the
-// published site none of these were reachable — they are plain constants now.
+// The last two values from the prototyping host's tweak panel that CSS still
+// reads at runtime. Tone, density and typeface used to be attributes with one
+// reachable value each, so their rules now sit in styles.css unconditionally.
 const LOOK = {
-  accent:  "#6aa3ff",
-  tone:    "accent",
-  density: "compact",
-  radius:  18,
-  motion:  1,
-  font:    "sans",
+  accent: "#6aa3ff",
+  radius: 18,
+  motion: 1,
 };
-
-// ponytail: no UI for the mascot since the panel went away — flip to true to
-// bring it back, or delete mascot.jsx along with this.
-const SHOW_MASCOT = false;
 
 function Tabs({ t, value, onChange, fileCount }) {
   const items = [
@@ -271,9 +264,6 @@ function App() {
     root.style.setProperty("--radius",    LOOK.radius + "px");
     root.style.setProperty("--radius-sm", Math.max(6, LOOK.radius * .55) + "px");
     root.style.setProperty("--motion",    LOOK.motion);
-    root.setAttribute("data-tone",    LOOK.tone);
-    root.setAttribute("data-density", LOOK.density);
-    root.setAttribute("data-font",    LOOK.font);
   }, []);
 
   // The only thing the user can actually switch.
@@ -384,8 +374,6 @@ function App() {
         </div>
 
         <div className="app">
-          {SHOW_MASCOT && <Mascot />}
-
           <header className="app-header">
             <div className="app-title">
               <h1>{t.appTitle1} <span className="accent">{t.appTitle2}</span></h1>

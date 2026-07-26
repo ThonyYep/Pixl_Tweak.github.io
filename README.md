@@ -77,7 +77,7 @@ encoder actually produced.
 | `convert.jsx` | Convert tab, file list, settings rail |
 | `other-tools.jsx` | Resize, Compress, Crop tabs |
 | `copy.jsx` | All ES/EN strings |
-| `icons.jsx`, `mascot.jsx` | SVG assets |
+| `icons.jsx` | SVG icon set |
 | `styles.css` | Everything visual |
 | `selftest.html` | Browser test suite |
 

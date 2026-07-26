@@ -12,7 +12,7 @@
   --line: #ece2cf;
   --line-2: #f4ead7;
 
-  /* surface-tone tokens — "sand" container colors. Driven by [data-tone]. */
+  /* surface-tone tokens — "sand" container colors, derived from the accent. */
   --tint: #f6e9d2;
   --tint-2: #ffffff;
   --tint-line: #e7dcc4;
@@ -37,8 +37,8 @@
   --radius-lg: 26px;
 
   /* density */
-  --pad: 28px;
-  --gap: 16px;
+  --pad: 18px;
+  --gap: 10px;
 
   /* motion */
   --motion: 1;
@@ -46,26 +46,8 @@
   --ease: cubic-bezier(.2, .8, .2, 1);
 }
 
-/* surface tone options ─────────────────────────────────────────── */
-[data-tone="warm"] {
-  --tint: #f6e9d2;
-  --tint-2: #fffaf2;
-  --tint-line: #e7dcc4;
-  --tint-ink: #6a6280;
-}
-[data-tone="cool"] {
-  --tint: #eaf2ff;
-  --tint-2: #f5f8ff;
-  --tint-line: #c9d6ec;
-  --tint-ink: #4a5a78;
-}
-[data-tone="mist"] {
-  --tint: #f0f0f3;
-  --tint-2: #fafafc;
-  --tint-line: #dcdce3;
-  --tint-ink: #5b5b6e;
-}
-[data-tone="accent"] {
+/* surface tones, derived from the accent ───────────────────────── */
+:root {
   --tint: color-mix(in oklab, var(--coral), white 88%);
   --tint-2: color-mix(in oklab, var(--coral), white 94%);
   --tint-line: color-mix(in oklab, var(--coral), white 70%);
@@ -83,11 +65,10 @@
   --line: #35304a;
   --line-2: #2a2640;
 
-  /* dark tint defaults (overridden per tone below) */
-  --tint: #2a2740;
-  --tint-2: #1f1c30;
-  --tint-line: #3a3553;
-  --tint-ink: #b9b2cd;
+  --tint: color-mix(in oklab, var(--coral), black 70%);
+  --tint-2: color-mix(in oklab, var(--coral), black 82%);
+  --tint-line: color-mix(in oklab, var(--coral), black 55%);
+  --tint-ink: color-mix(in oklab, var(--coral), white 35%);
 
   /* lift up *-ink + darken *-soft for proper contrast on dark surfaces */
   --coral-ink: color-mix(in oklab, var(--coral), white 26%);
@@ -97,19 +78,6 @@
   --sage-ink: color-mix(in oklab, var(--sage), white 22%);
   --sage-soft: color-mix(in oklab, var(--sage), black 70%);
 }
-[data-theme="dark"][data-tone="warm"]  { --tint:#2e2a3f; --tint-2:#221e33; --tint-line:#3f3a52; --tint-ink:#b8b0c6; }
-[data-theme="dark"][data-tone="cool"]  { --tint:#222942; --tint-2:#1d2034; --tint-line:#33405e; --tint-ink:#a9b9d6; }
-[data-theme="dark"][data-tone="mist"]  { --tint:#2a2933; --tint-2:#1e1d27; --tint-line:#3a3946; --tint-ink:#a9a7b8; }
-[data-theme="dark"][data-tone="accent"]{
-  --tint: color-mix(in oklab, var(--coral), black 70%);
-  --tint-2: color-mix(in oklab, var(--coral), black 82%);
-  --tint-line: color-mix(in oklab, var(--coral), black 55%);
-  --tint-ink: color-mix(in oklab, var(--coral), white 35%);
-}
-
-[data-density="compact"] { --pad: 18px; --gap: 10px; }
-[data-density="comfy"] { --pad: 36px; --gap: 22px; }
-
 * { box-sizing: border-box; }
 
 html, body {
@@ -1306,51 +1274,18 @@ body::before {
   100% { box-shadow: 0 0 0 0 rgba(111,198,160,0); }
 }
 
-/* ─── mascot ────────────────────────────────────────────────────── */
-.mascot {
-  position: absolute;
-  right: 28px;
-  top: 18px;
-  width: 84px;
-  height: 84px;
-  pointer-events: none;
-  animation: hover calc(4s / var(--motion, 1)) ease-in-out infinite;
-  z-index: 2;
-}
-@keyframes hover {
-  0%, 100% { transform: translateY(0) rotate(-3deg); }
-  50% { transform: translateY(calc(var(--motion) * -6px)) rotate(3deg); }
-}
-
 /* density tightens */
-[data-density="compact"] .app { padding: 18px 22px; }
-[data-density="compact"] .app-title h1 { font-size: 30px; }
-[data-density="compact"] .dropzone { padding: 36px 24px; }
-[data-density="compact"] .tabs { margin-bottom: 14px; }
+.app { padding: 18px 22px; }
+.app-title h1 { font-size: 30px; }
+.dropzone { padding: 36px 24px; }
+.tabs { margin-bottom: 14px; }
 
-[data-density="comfy"] .app { padding: 36px 40px; }
-[data-density="comfy"] .dropzone { padding: 64px 36px; }
-
-/* font tweak */
-[data-font="serif"] body { font-family: "Nunito", "Plus Jakarta Sans", sans-serif; }
-[data-font="serif"] .app-title h1,
-[data-font="serif"] .dropzone h2,
-[data-font="serif"] .summary .big,
-[data-font="serif"] .compare .panel .num { font-family: "Fraunces", serif; }
-
-[data-font="sans"] body { font-family: "Plus Jakarta Sans", sans-serif; }
-[data-font="sans"] .app-title h1,
-[data-font="sans"] .dropzone h2,
-[data-font="sans"] .summary .big,
-[data-font="sans"] .compare .panel .num { font-family: "Plus Jakarta Sans", sans-serif; }
-
-[data-font="rounded"] body { font-family: "Nunito", sans-serif; }
-[data-font="rounded"] .app-title h1,
-[data-font="rounded"] .dropzone h2,
-[data-font="rounded"] .summary .big,
-[data-font="rounded"] .compare .panel .num { font-family: "Nunito", sans-serif; font-weight: 800; }
-
-/* radius tweak helpers — handled via JS setting --radius */
+/* typeface */
+body { font-family: "Plus Jakarta Sans", sans-serif; }
+.app-title h1,
+.dropzone h2,
+.summary .big,
+.compare .panel .num { font-family: "Plus Jakarta Sans", sans-serif; }
 
 @media (max-width: 980px) {
   .file-stage, .tool-stage { grid-template-columns: 1fr; }
