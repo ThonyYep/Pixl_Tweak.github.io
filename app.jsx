@@ -258,7 +258,9 @@ function App() {
   const [files, setFiles] = React.useState([]);
   const [mode,  setMode]  = React.useState("idle");
   const [settings, setSettings] = React.useState({
-    format:         "WEBP",
+    // WEBP where it works, JPG on Safari — canvas there can't encode WebP and
+    // defaulting to it made every conversion fail before the user touched anything.
+    format:         DEFAULT_FORMAT,
     quality:        82,
     transparent:    true,
     icoKeepOriginal: true,

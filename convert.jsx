@@ -16,11 +16,25 @@ const FORMATS     = ["PNG","JPG","WEBP","AVIF","BMP","PDF","ICO"];
 // are not among them — listing them only produced failed conversions.
 const ALL_FORMATS = ["AVIF","BMP","GIF","ICO","JPG","JPEG","PNG","SVG","WEBP"];
 
+// Probed once at load — see Processor.canEncode.
+const DEFAULT_FORMAT = Processor.canEncode("image/webp") ? "WEBP" : "JPG";
+
 // Formats that support a quality/compression slider
 const FMT_HAS_QUALITY = new Set(["JPG","WEBP","AVIF","PDF"]);
 // Formats that support transparency
 const FMT_HAS_ALPHA   = new Set(["PNG","WEBP","AVIF"]);
-const ICO_SIZES  = [8,16,24,32,48,64,128,256,512];
+// 256 is the ceiling: an ICO directory entry stores width/height in one byte,
+// with 0 meaning 256. 512 cannot be expressed, so offering it only produced a
+// size that got silently dropped.
+const ICO_SIZES  = [8,16,24,32,48,64,128,256];
+
+// Three distinct failures, three distinct messages — "unsupported format" for
+// an image that is simply too big sends the user hunting in the wrong place.
+function errorMessage(t, e) {
+  if (e.tooBig) return t.convert.errTooBig.replace("{dims}", e.tooBig);
+  if (e.fmt)    return t.convert.errFormat.replace("{fmt}", e.fmt);
+  return t.convert.errRead;
+}
 
 function formatBytes(n) {
   if (n >= 10_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "") + " MB";
@@ -138,7 +152,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
 
   // A failed file is finished too — otherwise the bar never reaches 100%.
   const errorText = React.useMemo(() => Object.fromEntries(errors.map(e =>
-    [e.id, e.fmt ? t.convert.errFormat.replace("{fmt}", e.fmt) : t.convert.errRead]
+    [e.id, errorMessage(t, e)]
   )), [errors, t]);
   const allFailed = errors.length > 0 && errors.length === files.length;
   const completed = Object.values(progress).filter(p => p.state === "done" || p.state === "error").length;
@@ -438,7 +452,9 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   );
 }
 
-window.ConvertTab   = ConvertTab;
+window.ConvertTab     = ConvertTab;
+window.DEFAULT_FORMAT = DEFAULT_FORMAT;
+window.errorMessage   = errorMessage;
 window.SAMPLE_FILES = SAMPLE_FILES;
 window.ALL_FORMATS  = ALL_FORMATS;
 window.formatBytes  = formatBytes;

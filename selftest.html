@@ -213,6 +213,200 @@
         assert(sizes.length === 0, "a failed file must not report bytes");
       });
 
+      // ── ICO: no size is offered that the format cannot express ─────────────
+      await test("the ICO size picker offers nothing above 256", () => {
+        for (const s of ICO_SIZES) {
+          assert(s <= 256, s + "px cannot be stored in an ICO directory entry");
+        }
+      });
+
+      await test("encodeICO refuses to emit an empty icon file", async () => {
+        let threw = false;
+        try { await P.encodeICO([]); } catch (e) { threw = true; }
+        assert(threw, "encodeICO produced a 6-byte header with zero icons");
+      });
+
+      await test("a real ICO lists every size it was given", async () => {
+        const src = solidCanvas(300, 300);
+        const want = [16, 32, 256];
+        const blobs = [];
+        for (const s of want) {
+          const c = document.createElement("canvas");
+          c.width = s; c.height = s;
+          c.getContext("2d").drawImage(src, 0, 0, s, s);
+          blobs.push({ size: s, blob: await P.canvasToBlob(c, "PNG", 100, true) });
+        }
+        const u = new Uint8Array(await (await P.encodeICO(blobs)).arrayBuffer());
+        const count = u[4] | (u[5] << 8);
+        assert(count === want.length, `directory lists ${count} icons, expected ${want.length}`);
+        // 256 is stored as 0 in the single width byte
+        assert(u[6] === 16 && u[6 + 16] === 32 && u[6 + 32] === 0, "entry sizes are wrong");
+      });
+
+      // ── Crop: the rectangle means the same thing the preview showed ────────
+      await test("full-frame crop at 0° keeps every pixel", () => {
+        // 400x200 unrotated; a 0,0,100,100 rect must map to the whole image.
+        const rw = 400, rh = 200, crop = { x: 0, y: 0, w: 100, h: 100 };
+        const cx = Math.min(Math.max(0, crop.x / 100 * rw), rw);
+        const cw = Math.max(1, Math.min(rw - cx, crop.w / 100 * rw));
+        const ch = Math.max(1, Math.min(rh - 0, crop.h / 100 * rh));
+        assert(cw === 400 && ch === 200, `got ${cw}x${ch}, expected 400x200`);
+      });
+
+      await test("crop at 90° stays inside the rotated canvas", async () => {
+        const src = solidCanvas(400, 200);
+        // Mirror processCrop's geometry for rotation = 90.
+        const rad = Math.PI / 2, sinA = 1, cosA = 0;
+        const rw = Math.round(400 * cosA + 200 * sinA);   // 200
+        const rh = Math.round(400 * sinA + 200 * cosA);   // 400
+        const rot = document.createElement("canvas");
+        rot.width = rw; rot.height = rh;
+        const rc = rot.getContext("2d");
+        rc.translate(rw / 2, rh / 2); rc.rotate(rad); rc.drawImage(src, -200, -100);
+
+        const crop = { x: 0, y: 0, w: 100, h: 100 };
+        const cx = Math.min(Math.max(0, crop.x / 100 * rw), rw);
+        const cy = Math.min(Math.max(0, crop.y / 100 * rh), rh);
+        const cw = Math.max(1, Math.min(rw - cx, crop.w / 100 * rw));
+        const ch = Math.max(1, Math.min(rh - cy, crop.h / 100 * rh));
+        assert(cx + cw <= rw && cy + ch <= rh, "crop rect reads past the rotated canvas");
+
+        const out = document.createElement("canvas");
+        out.width = Math.round(cw); out.height = Math.round(ch);
+        out.getContext("2d").drawImage(rot, cx, cy, cw, ch, 0, 0, out.width, out.height);
+        assert(out.width === 200 && out.height === 400, `got ${out.width}x${out.height}`);
+        const d = out.getContext("2d").getImageData(0, 0, out.width, out.height).data;
+        let clear = 0;
+        for (let i = 3; i < d.length; i += 4) if (d[i] === 0) clear++;
+        assert(clear === 0, `${Math.round(clear / (d.length / 4) * 100)}% of the crop is empty`);
+      });
+
+      await test("an out-of-range rect crops short instead of padding", () => {
+        const rw = 400, rh = 200, crop = { x: 80, y: 80, w: 100, h: 100 };  // runs off the edge
+        const cx = Math.min(Math.max(0, crop.x / 100 * rw), rw);
+        const cy = Math.min(Math.max(0, crop.y / 100 * rh), rh);
+        const cw = Math.max(1, Math.min(rw - cx, crop.w / 100 * rw));
+        const ch = Math.max(1, Math.min(rh - cy, crop.h / 100 * rh));
+        assert(cx + cw <= rw && cy + ch <= rh, "clamp failed");
+        assert(cw === 80 && ch === 40, `got ${cw}x${ch}, expected 80x40`);
+      });
+
+      // ── Downscale quality ──────────────────────────────────────────────────
+      await test("contexts request high-quality smoothing", () => {
+        const c = document.createElement("canvas");
+        c.width = c.height = 8;
+        const probe = P.resizeCanvas(solidCanvas(64, 64), 8, 8, 2);
+        const ctx = probe.getContext("2d");
+        assert(ctx.imageSmoothingEnabled === true, "smoothing is off");
+        assert(ctx.imageSmoothingQuality === "high", "quality is " + ctx.imageSmoothingQuality);
+      });
+
+      await test("preShrink halves down to the target, never below it", () => {
+        // 1600x800 -> 800x400 -> 400x200 -> 200x100 -> 100x50. Landing exactly
+        // on target is the good case: the caller's final draw is then 1:1.
+        const exact = P.preShrink(solidCanvas(1600, 800), 100, 50);
+        assert(exact.width === 100 && exact.height === 50, `got ${exact.width}x${exact.height}`);
+        // Non-power-of-two: must stop before undershooting either axis.
+        const odd = P.preShrink(solidCanvas(1000, 700), 300, 210);
+        assert(odd.width >= 300 && odd.height >= 210, `undershot to ${odd.width}x${odd.height}`);
+        assert(odd.width < 1000, "did not shrink at all");
+      });
+
+      await test("preShrink leaves a small source alone", () => {
+        const src = solidCanvas(120, 90);
+        assert(P.preShrink(src, 100, 80) === src, "allocated a needless intermediate");
+      });
+
+      // A 1px checkerboard is the classic aliasing torture test: naive 2x2
+      // bilinear at a big reduction samples a near-constant phase and collapses
+      // to a flat block, so variance across the output collapses with it.
+      await test("heavy downscale averages instead of aliasing", () => {
+        const n = 1024;
+        const src = document.createElement("canvas");
+        src.width = src.height = n;
+        const sc = src.getContext("2d");
+        const id = sc.createImageData(n, n);
+        for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+          const v = ((x ^ y) & 1) ? 255 : 0, i = (y * n + x) * 4;
+          id.data[i] = id.data[i+1] = id.data[i+2] = v; id.data[i+3] = 255;
+        }
+        sc.putImageData(id, 0, 0);
+        const out = P.resizeCanvas(src, 16, 16, 2);   // 64x reduction
+        const d = out.getContext("2d").getImageData(0, 0, 16, 16).data;
+        let min = 255, max = 0;
+        for (let i = 0; i < d.length; i += 4) { if (d[i] < min) min = d[i]; if (d[i] > max) max = d[i]; }
+        // A correct box average of a 50/50 checkerboard lands near mid grey
+        // everywhere; aliasing produces near-black or near-white patches.
+        assert(min > 100 && max < 155, `expected a flat mid grey, got range ${min}..${max}`);
+      });
+
+      // ── WebP must not fall off the lossless cliff at the top of the slider ──
+      await test("WEBP at quality 100 stays lossy", async () => {
+        const src = solidCanvas(64, 64);
+        const g = src.getContext("2d").createLinearGradient(0, 0, 64, 64);
+        g.addColorStop(0, "#2b6cb0"); g.addColorStop(1, "#111");
+        src.getContext("2d").fillStyle = g;
+        src.getContext("2d").fillRect(0, 0, 64, 64);
+        const ref = src.getContext("2d").getImageData(0, 0, 64, 64).data;
+
+        const blob = await P.canvasToBlob(src, "WEBP", 100, true);
+        const img  = await P.loadImage(blob);
+        const t = document.createElement("canvas");
+        t.width = 64; t.height = 64;
+        t.getContext("2d").drawImage(img, 0, 0);
+        const got = t.getContext("2d").getImageData(0, 0, 64, 64).data;
+        let diff = 0;
+        for (let i = 0; i < ref.length; i++) if (ref[i] !== got[i]) diff++;
+        assert(diff > 0, "quality 100 produced a pixel-exact file — it switched to lossless");
+      });
+
+      // ── The default output format is one this browser can actually encode ──
+      await test("the default format is encodable here", async () => {
+        const mime = { WEBP: "image/webp", JPG: "image/jpeg", PNG: "image/png" }[DEFAULT_FORMAT];
+        assert(mime, "unexpected default " + DEFAULT_FORMAT);
+        const b = await P.canvasToBlob(solidCanvas(16, 16), DEFAULT_FORMAT, 82, true);
+        assert(b.type === mime, `default ${DEFAULT_FORMAT} produced ${b.type}`);
+      });
+
+      await test("canEncode agrees with what toBlob actually returns", async () => {
+        for (const [fmt, mime] of [["PNG","image/png"], ["JPG","image/jpeg"], ["WEBP","image/webp"]]) {
+          const claimed = P.canEncode(mime);
+          let actual = false;
+          try { actual = (await P.canvasToBlob(solidCanvas(8, 8), fmt, 82, true)).type === mime; }
+          catch (e) { actual = false; }
+          assert(claimed === actual, `${mime}: canEncode says ${claimed}, encoder says ${actual}`);
+        }
+      });
+
+      // ── "Too big" and "unsupported format" are different failures ──────────
+      await test("an oversized source reports its size, not a format problem", async () => {
+        // 20000x20000 is past every current browser's area cap.
+        const png  = await P.canvasToBlob(solidCanvas(8, 8), "PNG", 90, true);
+        const file = { id: 11, name: "huge.png", fileObj: new File([png], "huge.png") };
+        // Drive the geometry directly — synthesising a real 400 MP file isn't possible.
+        const c = document.createElement("canvas");
+        c.width = 20000; c.height = 20000;
+        const ctx = c.getContext("2d");
+        if (!ctx) { record("oversized canvas is unusable as expected"); return; }
+        ctx.fillStyle = "#ff0000";
+        ctx.fillRect(c.width - 1, c.height - 1, 1, 1);
+        const backed = ctx.getImageData(c.width - 1, c.height - 1, 1, 1).data[0] === 255;
+        assert(!backed, "20000x20000 is within this browser's cap — pick a bigger probe");
+
+        let err = null;
+        try { await P.canvasToBlob(c, "PNG", 90, true); } catch (e) { err = e; }
+        assert(err, "encoding an over-limit canvas silently succeeded");
+        assert(/^CANVAS_TOO_LARGE:/.test(err.message),
+          "reported as '" + err.message + "' instead of a size problem");
+      });
+
+      await test("the three failures map to three different messages", () => {
+        const t = { convert: { errTooBig: "too big {dims}", errFormat: "no {fmt}", errRead: "unreadable" } };
+        assert(errorMessage(t, { tooBig: "20000×20000" }) === "too big 20000×20000", "size case");
+        assert(errorMessage(t, { fmt: "AVIF" })           === "no AVIF",             "format case");
+        assert(errorMessage(t, {})                        === "unreadable",          "decode case");
+      });
+
       // ponytail: single-file cases only — anything with 2+ files takes the zip
       // path and would write to the user's Downloads folder mid-test.
 

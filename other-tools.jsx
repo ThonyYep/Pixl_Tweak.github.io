@@ -7,8 +7,7 @@
 // count is enough — the console already has the full list.
 function ErrorNote({ t, errors }) {
   if (!errors || errors.length === 0) return null;
-  const first  = errors[0];
-  const reason = first.fmt ? t.convert.errFormat.replace("{fmt}", first.fmt) : t.convert.errRead;
+  const reason = errorMessage(t, errors[0]);
   return (
     <div className="error-note">
       <Icon name="x" size={14} />
@@ -137,7 +136,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [lock,        setLock]        = React.useState(true);
   const [fit,         setFit]         = React.useState(0);
   const [upscale,     setUpscale]     = React.useState(false);
-  const [format,      setFormat]      = React.useState("WEBP");
+  const [format,      setFormat]      = React.useState(DEFAULT_FORMAT);
   const [transparent, setTransparent] = React.useState(true);
   const [processing,  setProcessing]  = React.useState(false);
   const [errors,      setErrors]      = React.useState([]);
@@ -481,7 +480,21 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
   const imgBoundsRef  = React.useRef({ x:0, y:0, w:100, h:100 }); // image position in % of container
   const [crop, setCrop] = React.useState({ x:0, y:0, w:100, h:100 });
 
-  function updateCrop(c) { setCrop(c); if (onCropChange) onCropChange(c); }
+  // The overlay works in container percentages because that is what it is
+  // positioned with, but consumers want percentages of the image itself —
+  // reporting container-relative numbers cropped a few percent off every edge.
+  function updateCrop(c) {
+    setCrop(c);
+    if (!onCropChange) return;
+    const b = imgBoundsRef.current;
+    if (!b.w || !b.h) return;
+    onCropChange({
+      x: (c.x - b.x) / b.w * 100,
+      y: (c.y - b.y) / b.h * 100,
+      w: c.w / b.w * 100,
+      h: c.h / b.h * 100,
+    });
+  }
 
   // Recompute image bounds and reset crop whenever imageDims or ratio changes
   React.useEffect(() => {
@@ -682,6 +695,32 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const fileUrl      = useFileUrl(selectedFile);
   const ratios       = t.crop.ratios;
 
+  // The crop box has to sit on the rotated image, because that is what gets
+  // cropped. That means knowing the rotated bounding box and how much the
+  // preview has to shrink so it still fits the frame.
+  const frameRef = React.useRef(null);
+  const [frame, setFrame] = React.useState({ w: 0, h: 0 });
+  React.useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setFrame({ w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [files.length === 0]);
+
+  const rad     = rotation * Math.PI / 180;
+  const cosA    = Math.abs(Math.cos(rad)), sinA = Math.abs(Math.sin(rad));
+  const rotDims = origDims.w > 0
+    ? { w: Math.round(origDims.w * cosA + origDims.h * sinA),
+        h: Math.round(origDims.w * sinA + origDims.h * cosA) }
+    : { w: 0, h: 0 };
+  // objectFit:contain sizes the image before the rotation is applied, so a
+  // rotated image overflows the frame and gets clipped. Shrink to compensate.
+  const fitScale = (frame.w && frame.h && origDims.w && rotDims.w)
+    ? Math.min(1, Math.min(frame.w / rotDims.w,  frame.h / rotDims.h)
+                / Math.min(frame.w / origDims.w, frame.h / origDims.h))
+    : 1;
+
   function handleReset() {
     setRotation(0); setFlipH(false); setFlipV(false); setRatio(0);
     setResetKey(k => k + 1);
@@ -712,26 +751,26 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             </div>
             {/* 12px padding gives crop handles room to render outside the image edge */}
             <div style={{ padding:12 }}>
-              <div style={{ position:"relative", minHeight:360, overflow:"visible", borderRadius:"var(--radius-lg,12px)", border:"1.5px solid var(--line)" }}>
+              <div ref={frameRef} style={{ position:"relative", minHeight:360, overflow:"visible", borderRadius:"var(--radius-lg,12px)", border:"1.5px solid var(--line)" }}>
                 {/* Image layer — clipped to rounded corners so no bleed-out */}
                 <div style={{ position:"absolute", inset:0, borderRadius:"var(--radius-lg,12px)", overflow:"hidden", background:"var(--surface-1,white)" }}>
                   {fileUrl ? (
                     <img src={fileUrl} alt="" style={{
                       position:"absolute", inset:0, width:"100%", height:"100%", objectFit:"contain",
-                      transform:`rotate(${rotation}deg) scale(${flipH?-1:1},${flipV?-1:1})`,
+                      transform:`rotate(${rotation}deg) scale(${(flipH?-1:1)*fitScale},${(flipV?-1:1)*fitScale})`,
                       transition:"transform .35s cubic-bezier(.32,1.6,.42,1)",
                     }} />
                   ) : selectedFile ? (
                     <div style={{
                       position:"absolute", inset:0,
                       background:`linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
-                      transform:`rotate(${rotation}deg) scale(${flipH?-1:1},${flipV?-1:1})`,
+                      transform:`rotate(${rotation}deg) scale(${(flipH?-1:1)*fitScale},${(flipV?-1:1)*fitScale})`,
                       transition:"transform .35s cubic-bezier(.32,1.6,.42,1)",
                     }} />
                   ) : null}
                 </div>
                 {/* Crop overlay — NOT clipped so handles can bleed outside */}
-                <CropCanvas key={resetKey} ratio={ratio} ratioLabel={ratios[ratio]} imageDims={origDims} onCropChange={setCropState} />
+                <CropCanvas key={resetKey} ratio={ratio} ratioLabel={ratios[ratio]} imageDims={rotDims} onCropChange={setCropState} />
               </div>
             </div>
             {/* Before → after dimensions */}
@@ -739,8 +778,8 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               {origDims.w > 0 ? `${origDims.w}×${origDims.h} px` : "—"}
               {" → "}
               <span style={{ color:"var(--coral-ink,var(--coral))", fontWeight:600 }}>
-                {origDims.w > 0
-                  ? `${Math.round(cropState.w / 100 * origDims.w)}×${Math.round(cropState.h / 100 * origDims.h)} px`
+                {rotDims.w > 0
+                  ? `${Math.round(cropState.w / 100 * rotDims.w)}×${Math.round(cropState.h / 100 * rotDims.h)} px`
                   : "—"}
               </span>
             </div>

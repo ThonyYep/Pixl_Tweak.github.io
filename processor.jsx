@@ -1,5 +1,51 @@
 // processor.jsx — Image processing engine (Canvas API + JSZip + jsPDF)
 
+// Canvas defaults to a 2x2 bilinear tap with no mipmaps at every scale factor,
+// which aliases badly on downscale. 'high' buys a 4x4 cubic in Chrome and a
+// scale-adaptive filter in Safari. Firefox ignores it entirely — preShrink is
+// what covers that case.
+function ctx2d(canvas) {
+  const ctx = canvas.getContext("2d");
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
+  return ctx;
+}
+
+// Shrink before dropping — Safari in particular holds the backing store until
+// GC, and a batch allocates one of these per halving step.
+function releaseCanvas(canvas) {
+  canvas.width = 1; canvas.height = 1;
+}
+
+// Halve repeatedly until one more halving would land under the requested size,
+// then let the caller do the last step. A factor of exactly 0.5 is where the
+// 2x2 bilinear kernel becomes a correct box average, so chaining them builds a
+// mipmap chain by hand — the part of the fix that also works in Firefox.
+// Returns src untouched when no halving is needed.
+function preShrink(src, dw, dh) {
+  let cur = src;
+  let cw = src.naturalWidth  || src.width;
+  let ch = src.naturalHeight || src.height;
+  while (cw >= dw * 2 && ch >= dh * 2 && cw > 1 && ch > 1) {
+    const nw = Math.max(1, cw >> 1), nh = Math.max(1, ch >> 1);
+    const step = document.createElement("canvas");
+    step.width = nw; step.height = nh;
+    ctx2d(step).drawImage(cur, 0, 0, cw, ch, 0, 0, nw, nh);
+    if (cur !== src) releaseCanvas(cur);
+    cur = step; cw = nw; ch = nh;
+  }
+  return cur;
+}
+
+// Safari cannot encode WebP from a canvas, and toBlob quietly hands back PNG
+// rather than failing — so the default output format has to be probed, not
+// assumed. toDataURL is the synchronous form, which lets it seed initial state.
+function canEncode(mime) {
+  const c = document.createElement("canvas");
+  c.width = 1; c.height = 1;
+  return c.toDataURL(mime).startsWith("data:" + mime);
+}
+
 async function loadImage(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -43,20 +89,19 @@ async function getSourceCanvas(file) {
     const canvas = document.createElement("canvas");
     canvas.width  = img.naturalWidth;
     canvas.height = img.naturalHeight;
-    canvas.getContext("2d").drawImage(img, 0, 0);
+    const ctx = ctx2d(canvas);
+    // Past the browser's canvas cap there is no signal: getContext still hands
+    // back a context and every draw silently no-ops, so the export comes out
+    // blank. Writing one pixel and reading it back is the only way to know.
+    ctx.fillStyle = "#ff0000";
+    ctx.fillRect(canvas.width - 1, canvas.height - 1, 1, 1);
+    if (ctx.getImageData(canvas.width - 1, canvas.height - 1, 1, 1).data[0] !== 255) {
+      throw new Error("CANVAS_TOO_LARGE:" + canvas.width + "×" + canvas.height);
+    }
+    ctx.drawImage(img, 0, 0);
     return canvas;
   }
   return generateSampleCanvas(file.w || 800, file.h || 600, file.palette);
-}
-
-function copyToCanvas(src, w, h) {
-  const sw = src.naturalWidth  || src.width;
-  const sh = src.naturalHeight || src.height;
-  const canvas = document.createElement("canvas");
-  canvas.width  = w || sw;
-  canvas.height = h || sh;
-  canvas.getContext("2d").drawImage(src, 0, 0, canvas.width, canvas.height);
-  return canvas;
 }
 
 // Fit image inside a square size×size preserving aspect ratio (transparent bg)
@@ -66,14 +111,16 @@ function resizeContain(src, size) {
   const scale = Math.min(size / sw, size / sh);
   const dw = Math.round(sw * scale);
   const dh = Math.round(sh * scale);
+  const shrunk = preShrink(src, dw, dh);
   const canvas = document.createElement("canvas");
   canvas.width = size; canvas.height = size;
-  canvas.getContext("2d").drawImage(
-    src,
+  ctx2d(canvas).drawImage(
+    shrunk,
     Math.round((size - dw) / 2),
     Math.round((size - dh) / 2),
     dw, dh
   );
+  if (shrunk !== src) releaseCanvas(shrunk);
   return canvas;
 }
 
@@ -81,21 +128,23 @@ function resizeCanvas(src, targetW, targetH, fit) {
   // fit: 0=contain, 1=cover, 2=stretch
   const sw = src.naturalWidth  || src.width;
   const sh = src.naturalHeight || src.height;
+  let dw, dh;
+  if (fit === 2) {
+    dw = targetW; dh = targetH;
+  } else {
+    const scale = fit === 1
+      ? Math.max(targetW / sw, targetH / sh)
+      : Math.min(targetW / sw, targetH / sh);
+    dw = sw * scale; dh = sh * scale;
+  }
+  const shrunk = preShrink(src, dw, dh);
   const canvas = document.createElement("canvas");
   canvas.width = targetW; canvas.height = targetH;
-  const ctx = canvas.getContext("2d");
   // No background fill: only 'contain' leaves bars, and canvasToBlob already
   // flattens onto white for JPG or when the user turns transparency off.
   // Filling here destroyed the alpha channel on every PNG/WEBP resize.
-  if (fit === 2) {
-    ctx.drawImage(src, 0, 0, targetW, targetH);
-  } else {
-    const scaleW = targetW / sw;
-    const scaleH = targetH / sh;
-    const scale  = fit === 1 ? Math.max(scaleW, scaleH) : Math.min(scaleW, scaleH);
-    const dw = sw * scale, dh = sh * scale;
-    ctx.drawImage(src, (targetW - dw) / 2, (targetH - dh) / 2, dw, dh);
-  }
+  ctx2d(canvas).drawImage(shrunk, (targetW - dw) / 2, (targetH - dh) / 2, dw, dh);
+  if (shrunk !== src) releaseCanvas(shrunk);
   return canvas;
 }
 
@@ -155,6 +204,11 @@ async function canvasToPng(canvas) {
 
 async function encodeICO(sizedPngBlobs) {
   // sizedPngBlobs: [{ size, blob }] — sizes must be <= 256
+  // An ICO with no entries is a 6-byte file every viewer rejects. Refusing here
+  // turns that into a reported error instead of a corrupt download.
+  if (!sizedPngBlobs || sizedPngBlobs.length === 0) {
+    throw new Error("ICO needs at least one size of 256px or smaller");
+  }
   const entries = await Promise.all(sizedPngBlobs.map(async ({ size, blob }) => ({
     size, data: new Uint8Array(await blob.arrayBuffer()),
   })));
@@ -218,15 +272,20 @@ async function canvasToBlob(canvas, format, quality, transparent) {
   const mimeMap = {
     PNG:  ["image/png",  1.0],
     JPG:  ["image/jpeg", q],
-    WEBP: ["image/webp", q],
+    // Exactly 1.0 makes Chrome and Firefox switch WebP to LOSSLESS at libwebp
+    // method 0 — the fastest, worst-compressing mode there is. The slider's top
+    // end is meant to be "best lossy", so stop just short of the cliff.
+    WEBP: ["image/webp", Math.min(q, 0.99)],
     AVIF: ["image/avif", q],
   };
   const [mime, qVal] = mimeMap[format] || ["image/png", 1.0];
   const blob = await new Promise(resolve => src.toBlob(resolve, mime, qVal));
-  // toBlob does not fail on a mime the browser can't encode — it quietly hands
-  // back PNG. Comparing blob.type is the only way to catch it, and without this
-  // we'd ship PNG bytes under a .avif name.
-  if (!blob || blob.type !== mime) throw new Error("UNSUPPORTED_OUTPUT:" + format);
+  // Two different failures with two different fixes: null means the canvas is
+  // past the browser's size cap, a blob of the wrong type means the browser
+  // can't encode this format and quietly substituted PNG. Neither throws on
+  // its own, and without the type check we'd ship PNG bytes under a .avif name.
+  if (!blob) throw new Error("CANVAS_TOO_LARGE:" + src.width + "×" + src.height);
+  if (blob.type !== mime) throw new Error("UNSUPPORTED_OUTPUT:" + format);
   return blob;
 }
 
@@ -236,11 +295,18 @@ function getOutputName(originalName, format) {
   return base + "." + (extMap[format] || format.toLowerCase());
 }
 
-// Thrown errors → { id, name, fmt }. fmt is set when the browser refused to
-// encode that output format, null when the source image couldn't be decoded.
+// Thrown errors → { id, name, fmt, tooBig }. fmt is set when the browser
+// refused to encode that output format, tooBig carries the dimensions when the
+// image is past the canvas cap, and both null means the source wouldn't decode.
 function toFileError(file, err) {
-  const m = /^UNSUPPORTED_OUTPUT:(\w+)/.exec((err && err.message) || "");
-  return { id: file.id, name: file.name, fmt: m ? m[1] : null };
+  const msg = (err && err.message) || "";
+  const fmt = /^UNSUPPORTED_OUTPUT:(\w+)/.exec(msg);
+  const big = /^CANVAS_TOO_LARGE:(\S+)/.exec(msg);
+  return {
+    id: file.id, name: file.name,
+    fmt: fmt ? fmt[1] : null,
+    tooBig: big ? big[1] : null,
+  };
 }
 
 function downloadBlob(blob, filename) {
@@ -484,17 +550,19 @@ async function processCrop(files, cropSettings, onProgress, onDone) {
       rctx.scale(flipH ? -1 : 1, flipV ? -1 : 1);
       rctx.drawImage(src, -sw / 2, -sh / 2);
 
-      // Crop rectangle in pixels (% of original unrotated dimensions)
-      const cx  = (crop.x / 100) * sw;
-      const cy  = (crop.y / 100) * sh;
-      const cw  = (crop.w / 100) * sw;
-      const ch  = (crop.h / 100) * sh;
-      const ox  = (rw - sw) / 2;
-      const oy  = (rh - sh) / 2;
+      // The crop rectangle is a percentage of the ROTATED image, which is what
+      // the overlay draws on. Measuring it against the unrotated dimensions and
+      // shifting by the size difference read outside the canvas and left holes.
+      // Clamped so a rect slightly out of range crops short instead of padding
+      // the result with transparent pixels.
+      const cx = Math.min(Math.max(0, crop.x / 100 * rw), rw);
+      const cy = Math.min(Math.max(0, crop.y / 100 * rh), rh);
+      const cw = Math.max(1, Math.min(rw - cx, crop.w / 100 * rw));
+      const ch = Math.max(1, Math.min(rh - cy, crop.h / 100 * rh));
 
       const out  = document.createElement("canvas");
       out.width  = Math.round(cw); out.height = Math.round(ch);
-      out.getContext("2d").drawImage(rot, cx + ox, cy + oy, cw, ch, 0, 0, cw, ch);
+      out.getContext("2d").drawImage(rot, cx, cy, cw, ch, 0, 0, out.width, out.height);
 
       onProgress(file.id, 80);
 
@@ -531,6 +599,9 @@ window.Processor = {
   generateSampleCanvas,
   getSourceCanvas,
   resizeCanvas,
+  resizeContain,
+  preShrink,
+  canEncode,
   canvasToBlob,
   getOutputName,
   encodeBMP,
