@@ -3,6 +3,20 @@
 
 // ── Shared UI helpers ─────────────────────────────────────────────────────────
 
+// These tabs have no per-file rows, so one line with the first reason and a
+// count is enough — the console already has the full list.
+function ErrorNote({ t, errors }) {
+  if (!errors || errors.length === 0) return null;
+  const first  = errors[0];
+  const reason = first.fmt ? t.convert.errFormat.replace("{fmt}", first.fmt) : t.convert.errRead;
+  return (
+    <div className="error-note">
+      <Icon name="x" size={14} />
+      <span>{reason}{errors.length > 1 ? ` (${errors.length})` : ""}</span>
+    </div>
+  );
+}
+
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return (
@@ -126,37 +140,26 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [format,      setFormat]      = React.useState("WEBP");
   const [transparent, setTransparent] = React.useState(true);
   const [processing,  setProcessing]  = React.useState(false);
+  const [errors,      setErrors]      = React.useState([]);
   const [origDims,    setOrigDims]    = React.useState({ w:0, h:0 });
 
   const idx          = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
   const fileUrl      = useFileUrl(selectedFile);
 
+  // App decodes each file once and patches w/h onto it — follow that instead
+  // of decoding a second time here.
   React.useEffect(() => {
-    if (!selectedFile) { setOrigDims({ w:0, h:0 }); return; }
-    if (selectedFile.w > 0 && selectedFile.h > 0) {
-      const { w: iw, h: ih } = selectedFile;
-      setOrigDims({ w: iw, h: ih });
-      setW(iw); setH(ih);
-      return;
-    }
-    if (selectedFile.fileObj) {
-      const img = new Image();
-      const url = URL.createObjectURL(selectedFile.fileObj);
-      img.onload = () => {
-        setOrigDims({ w: img.naturalWidth, h: img.naturalHeight });
-        setW(img.naturalWidth); setH(img.naturalHeight);
-        URL.revokeObjectURL(url);
-      };
-      img.onerror = () => URL.revokeObjectURL(url);
-      img.src = url;
-    }
-  }, [selectedFile?.id]);
+    const iw = selectedFile?.w || 0, ih = selectedFile?.h || 0;
+    setOrigDims({ w: iw, h: ih });
+    if (iw > 0) { setW(iw); setH(ih); }
+  }, [selectedFile?.id, selectedFile?.w]);
 
   function handleApply() {
     setProcessing(true);
+    setErrors([]);
     Processor.processResize(files, { w, h, fit, upscale, format, transparent },
-      () => {}, () => setProcessing(false));
+      () => {}, (ok, errs) => { setErrors(errs || []); setProcessing(false); });
   }
 
   const fitTooltips = t.resize.fitTooltips || ["", "", ""];
@@ -266,6 +269,8 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           </div>
         )}
 
+        <ErrorNote t={t} errors={errors} />
+
         <div className="actions">
           <button className="btn primary"
             disabled={processing || files.length === 0}
@@ -290,25 +295,35 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [reduceColors, setReduceColors] = React.useState(false);
   const [maxColors,    setMaxColors]    = React.useState(null);
   const [processing,   setProcessing]   = React.useState(false);
+  const [errors,       setErrors]       = React.useState([]);
+  const [outBytes,     setOutBytes]     = React.useState(null);
 
   const idx          = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
   const fileUrl      = useFileUrl(selectedFile);
 
   const totalBefore = selectedFile ? selectedFile.size : 0;
-  const baseFactor  = format === "PNG"  ? 0.55 + (1 - quality / 100) * 0.2
-                    : format === "WEBP" ? quality / 100 * 0.45 + 0.04
-                    :                    quality / 100 * 0.60 + 0.05;
-  const colorFactor = (format === "PNG" && reduceColors && maxColors !== null) ? (maxColors / 256) * 0.6 : 1;
-  const factor      = baseFactor * colorFactor;
-  const totalAfter  = totalBefore * factor;
-  const savings     = Math.round((1 - factor) * 100);
+  // Measured on completion. Guessing it from a per-format factor, as this used
+  // to, produced a number that was never checked against the real encoder.
+  const totalAfter  = outBytes;
+  const savings     = totalBefore > 0 && outBytes != null
+    ? Math.round((1 - outBytes / totalBefore) * 100) : null;
+
+  // Any settings change invalidates the last measurement.
+  React.useEffect(() => { setOutBytes(null); },
+    [selectedFile?.id, format, quality, reduceColors, maxColors]);
 
   function handleStart() {
     if (!selectedFile) return;
     setProcessing(true);
+    setErrors([]);
+    setOutBytes(null);
     Processor.processCompress([selectedFile], { format, quality, reduceColors, maxColors },
-      () => {}, () => setProcessing(false));
+      () => {}, (ok, errs, sizes) => {
+        setErrors(errs || []);
+        setOutBytes(sizes && sizes.length ? sizes[0].bytes : null);
+        setProcessing(false);
+      });
   }
 
   return (
@@ -342,9 +357,10 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               </div>
               <div className="panel after">
                 <div className="lab">{t.compress.after}</div>
-                <div className="num">{formatBytes(totalAfter)}</div>
+                <div className="num">{totalAfter != null ? formatBytes(totalAfter) : "—"}</div>
                 <div className="meta">1 {t.compress.filesSingular} · {format} q{quality}</div>
-                <div className="barwrap"><div className="fill" style={{ width:Math.max(4, factor * 100) + "%" }} /></div>
+                <div className="barwrap"><div className="fill" style={{
+                  width: totalAfter != null ? Math.max(4, totalAfter / totalBefore * 100) + "%" : "0%" }} /></div>
               </div>
             </div>
           </>
@@ -422,17 +438,25 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <div className="summary">
           <div className="summary-top">
             <span className="lab">{t.compress.savings}</span>
-            <span className="summary-pill">−{savings}%</span>
+            {savings != null && <span className="summary-pill">−{savings}%</span>}
           </div>
-          <div className="summary-num">{savings}<span className="unit">%</span></div>
-          <div className="summary-bar"><div className="summary-bar-fill" style={{ width:savings+"%" }} /></div>
+          <div className="summary-num">
+            {savings != null ? savings : "—"}{savings != null && <span className="unit">%</span>}
+          </div>
+          <div className="summary-bar">
+            <div className="summary-bar-fill" style={{ width: Math.max(0, savings || 0) + "%" }} />
+          </div>
           <div className="summary-foot">
             <span>{formatBytes(totalBefore)}</span>
-            <span className="arr">→</span>
-            <span className="emph">{formatBytes(totalAfter)}</span>
-            <span style={{ marginLeft:"auto" }}>{formatBytes(totalBefore - totalAfter)} {t.common.saved}</span>
+            {savings != null && <>
+              <span className="arr">→</span>
+              <span className="emph">{formatBytes(totalAfter)}</span>
+              <span style={{ marginLeft:"auto" }}>{formatBytes(totalBefore - totalAfter)} {t.common.saved}</span>
+            </>}
           </div>
         </div>
+
+        <ErrorNote t={t} errors={errors} />
 
         <div className="actions">
           <button className="btn primary"
@@ -646,24 +670,15 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [resetKey,    setResetKey]    = React.useState(0);
   const [cropState,   setCropState]   = React.useState({ x:10, y:10, w:80, h:80 });
   const [processing,  setProcessing]  = React.useState(false);
+  const [errors,      setErrors]      = React.useState([]);
   const [origDims,    setOrigDims]    = React.useState({ w:0, h:0 });
 
   const idx          = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
 
   React.useEffect(() => {
-    if (!selectedFile) { setOrigDims({ w:0, h:0 }); return; }
-    if (selectedFile.w > 0 && selectedFile.h > 0) {
-      setOrigDims({ w: selectedFile.w, h: selectedFile.h }); return;
-    }
-    if (selectedFile.fileObj) {
-      const img = new Image();
-      const url = URL.createObjectURL(selectedFile.fileObj);
-      img.onload  = () => { setOrigDims({ w: img.naturalWidth, h: img.naturalHeight }); URL.revokeObjectURL(url); };
-      img.onerror = () => URL.revokeObjectURL(url);
-      img.src = url;
-    }
-  }, [selectedFile?.id]);
+    setOrigDims({ w: selectedFile?.w || 0, h: selectedFile?.h || 0 });
+  }, [selectedFile?.id, selectedFile?.w]);
   const fileUrl      = useFileUrl(selectedFile);
   const ratios       = t.crop.ratios;
 
@@ -675,8 +690,9 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   function handleApply() {
     if (!selectedFile) return;
     setProcessing(true);
+    setErrors([]);
     Processor.processCrop([selectedFile], { crop: cropState, rotation, flipH, flipV },
-      () => {}, () => setProcessing(false));
+      () => {}, (ok, errs) => { setErrors(errs || []); setProcessing(false); });
   }
 
   return (
@@ -775,6 +791,8 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             <div className={"toggle " + (flipV?"on":"")} onClick={() => setFlipV(!flipV)}><div className="dot" /></div>
           </div>
         </div>
+
+        <ErrorNote t={t} errors={errors} />
 
         <div className="actions">
           <button className="btn ghost" onClick={handleReset}>

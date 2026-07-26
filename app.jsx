@@ -260,8 +260,6 @@ function App() {
   const [settings, setSettings] = React.useState({
     format:         "WEBP",
     quality:        82,
-    exif:           true,
-    srgb:           true,
     transparent:    true,
     icoKeepOriginal: true,
     icoSizes:       [],
@@ -284,17 +282,34 @@ function App() {
 
   const fileInputRef = React.useRef(null);
 
+  function mapFile(f, i) {
+    return {
+      id: Date.now() + i, name: f.name,
+      ext: (f.name.split(".").pop() || "").toUpperCase(),
+      size: f.size, w: 0, h: 0,
+      palette: PALETTES[i % PALETTES.length],
+      fileObj: f,
+    };
+  }
+
+  // Width and height aren't known until the image decodes, so rows start at 0
+  // and get patched as each one lands. Decode failures stay at 0 — the
+  // conversion itself reports the real error.
+  function fillDims(entries) {
+    entries.forEach(entry => {
+      Processor.loadImage(entry.fileObj).then(img => {
+        setFiles(prev => prev.map(x =>
+          x.id === entry.id ? { ...x, w: img.naturalWidth, h: img.naturalHeight } : x));
+      }).catch(() => {});
+    });
+  }
+
   // Replace all files (called from DropZone — navigates to Convert tab)
   function acceptFiles(realFiles) {
     if (realFiles && realFiles.length > 0) {
-      const mapped = Array.from(realFiles).map((f, i) => ({
-        id: Date.now() + i, name: f.name,
-        ext: (f.name.split(".").pop() || "").toUpperCase(),
-        size: f.size, w: 0, h: 0,
-        palette: PALETTES[i % PALETTES.length],
-        fileObj: f,
-      }));
+      const mapped = Array.from(realFiles).map(mapFile);
       setFiles(mapped);
+      fillDims(mapped);
     } else {
       setFiles(SAMPLE_FILES.slice(0, 5).map((f, i) => ({ ...f, id: i + 1 })));
     }
@@ -305,16 +320,12 @@ function App() {
   // Add files to existing list (called from tool tabs — no tab switch)
   function addFiles(fileList) {
     if (!fileList || fileList.length === 0) return;
+    const mapped = Array.from(fileList).map(mapFile);
     setFiles(prev => [
       ...prev,
-      ...Array.from(fileList).map((f, i) => ({
-        id: Date.now() + i, name: f.name,
-        ext: (f.name.split(".").pop() || "").toUpperCase(),
-        size: f.size, w: 0, h: 0,
-        palette: PALETTES[(prev.length + i) % PALETTES.length],
-        fileObj: f,
-      })),
+      ...mapped.map((m, i) => ({ ...m, palette: PALETTES[(prev.length + i) % PALETTES.length] })),
     ]);
+    fillDims(mapped);
   }
 
   function openFilePicker() {

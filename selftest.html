@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Pixl Tweak — self test</title>
+  <style>
+    body { font: 14px/1.6 ui-monospace, monospace; padding: 24px; max-width: 780px; }
+    li { list-style: none; }
+    .ok   { color: #2a7d4f; }
+    .fail { color: #e5484d; font-weight: 700; }
+    .skip { color: #888; }
+    h1 { font-size: 16px; }
+    #summary { margin-top: 16px; font-weight: 700; }
+  </style>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  <h1>Pixl Tweak — self test</h1>
+  <ul id="out"></ul>
+  <div id="summary">running…</div>
+
+  <script type="text/babel" src="processor.jsx"></script>
+  <script type="text/babel" src="convert.jsx"></script>
+  <script type="text/babel">
+    // Guards for the two bugs fixed here:
+    //   1. formats that silently encoded as something else (.avif holding PNG bytes)
+    //   2. failures that were swallowed and reported as success
+    // Open this file over the dev server (npm run dev → /selftest.html).
+
+    const out = document.getElementById("out");
+    let pass = 0, fail = 0;
+
+    function record(name, err) {
+      const li = document.createElement("li");
+      if (err) { fail++; li.className = "fail"; li.textContent = "✕ " + name + " — " + err; }
+      else     { pass++; li.className = "ok";   li.textContent = "✓ " + name; }
+      out.appendChild(li);
+    }
+    async function test(name, fn) {
+      try { await fn(); record(name); }
+      catch (e) { record(name, e.message); }
+    }
+    function assert(cond, msg) { if (!cond) throw new Error(msg); }
+
+    function solidCanvas(w = 40, h = 30) {
+      const c = document.createElement("canvas");
+      c.width = w; c.height = h;
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#3366cc";
+      ctx.fillRect(0, 0, w, h);
+      return c;
+    }
+    // Bytes that are not a decodable image, under a name the old code advertised.
+    function brokenFile() {
+      return { id: 1, name: "photo.cr2", fileObj: new File([new Uint8Array([1,2,3,4])], "photo.cr2") };
+    }
+
+    (async () => {
+      const P = window.Processor;
+
+      // ── Bug 1: an output blob always matches the format it claims ──────────
+      await test("PNG encodes as image/png", async () => {
+        const b = await P.canvasToBlob(solidCanvas(), "PNG", 90, true);
+        assert(b.type === "image/png", "got " + b.type);
+      });
+
+      await test("WEBP encodes as image/webp", async () => {
+        const b = await P.canvasToBlob(solidCanvas(), "WEBP", 82, true);
+        assert(b.type === "image/webp", "got " + b.type);
+      });
+
+      // The regression that mattered: toBlob hands back PNG for a mime it can't
+      // encode. Either we get real AVIF, or we refuse — never PNG named .avif.
+      await test("AVIF encodes as image/avif or throws (never mislabels)", async () => {
+        let blob = null;
+        try {
+          blob = await P.canvasToBlob(solidCanvas(), "AVIF", 82, true);
+        } catch (e) {
+          assert(/^UNSUPPORTED_OUTPUT:AVIF/.test(e.message), "wrong error: " + e.message);
+          return;
+        }
+        assert(blob.type === "image/avif", "returned " + blob.type + " for AVIF");
+      });
+
+      await test("no unencodable format is offered", () => {
+        for (const f of ["GIF", "TIFF"]) {
+          assert(!FORMATS.includes(f), f + " is still in the output picker");
+        }
+      });
+
+      await test("no undecodable format is advertised as input", () => {
+        for (const f of ["CR2", "DNG", "NEF", "PSD", "RAW", "EPS"]) {
+          assert(!ALL_FORMATS.includes(f), f + " is still listed as supported");
+        }
+      });
+
+      await test("JPG flattens alpha instead of writing black", async () => {
+        const c = document.createElement("canvas");
+        c.width = 4; c.height = 4;                       // fully transparent
+        const b = await P.canvasToBlob(c, "JPG", 90, true);
+        const img = await P.loadImage(b);
+        const t = document.createElement("canvas");
+        t.width = 4; t.height = 4;
+        t.getContext("2d").drawImage(img, 0, 0);
+        const [r, g, bl] = t.getContext("2d").getImageData(1, 1, 1, 1).data;
+        assert(r > 240 && g > 240 && bl > 240, `expected white, got rgb(${r},${g},${bl})`);
+      });
+
+      // ── Bug 3: resizing must not paint over the alpha channel ──────────────
+      await test("contain resize leaves the padding transparent", () => {
+        const out = P.resizeCanvas(solidCanvas(20, 10), 20, 20, 0);  // 2:1 into a square
+        const px = (x, y) => out.getContext("2d").getImageData(x, y, 1, 1).data;
+        assert(px(1, 1)[3]   === 0,   "padding alpha is " + px(1, 1)[3] + ", expected 0");
+        assert(px(10, 10)[3] === 255, "image area lost its opacity");
+      });
+
+      await test("resized JPG still flattens onto white", async () => {
+        const out = P.resizeCanvas(solidCanvas(20, 10), 20, 20, 0);
+        const img = await P.loadImage(await P.canvasToBlob(out, "JPG", 90, true));
+        const t = document.createElement("canvas");
+        t.width = 20; t.height = 20;
+        t.getContext("2d").drawImage(img, 0, 0);
+        const [r, g, b] = t.getContext("2d").getImageData(1, 1, 1, 1).data;
+        assert(r > 240 && g > 240 && b > 240, `padding should be white, got rgb(${r},${g},${b})`);
+      });
+
+      // ── Bug 4: real dimensions are readable from an uploaded file ──────────
+      await test("loadImage reports real pixel dimensions", async () => {
+        const png = await P.canvasToBlob(solidCanvas(137, 89), "PNG", 90, true);
+        const img = await P.loadImage(new File([png], "x.png", { type: "image/png" }));
+        assert(img.naturalWidth === 137 && img.naturalHeight === 89,
+          `got ${img.naturalWidth}×${img.naturalHeight}`);
+      });
+
+      await test("BMP header is well formed", () => {
+        const c = solidCanvas(10, 5);
+        const blob = P.encodeBMP(c);
+        assert(blob.type === "image/bmp", "got " + blob.type);
+        assert(blob.size === 54 + 10 * 5 * 4, "size " + blob.size);
+      });
+
+      await test("output name matches the chosen format", () => {
+        assert(P.getOutputName("holiday.png", "AVIF") === "holiday.avif", "avif");
+        assert(P.getOutputName("a.b.jpeg",    "WEBP") === "a.b.webp",     "dotted name");
+      });
+
+      // ── Bug 2: a failure is reported, never dressed up as success ──────────
+      await test("undecodable source rejects", async () => {
+        let threw = false;
+        try { await P.getSourceCanvas(brokenFile()); } catch (e) { threw = true; }
+        assert(threw, "getSourceCanvas resolved on garbage bytes");
+      });
+
+      await test("processConvert reports the failure to its caller", async () => {
+        const file = brokenFile();
+        const seen = [];
+        const { ok, errors } = await new Promise(resolve => {
+          P.processConvert([file], { format: "PNG", quality: 90 },
+            (id, pct, state) => seen.push({ id, pct, state }),
+            (ok, errors) => resolve({ ok, errors }));
+        });
+        assert(ok === false, "reported success for a file that failed");
+        assert(errors.length === 1, "expected 1 error, got " + errors.length);
+        assert(errors[0].id === file.id, "error is not tied to the file id");
+        assert(errors[0].fmt === null, "decode failure should not blame a format");
+        const last = seen[seen.length - 1];
+        assert(last.state === "error", "last progress state was '" + last.state + "', not 'error'");
+      });
+
+      // ── Bug 5: no toggle claims to do something canvas can't ───────────────
+      await test("re-encoding drops metadata, so nothing offers to keep it", async () => {
+        // A JPEG carrying an APP1/Exif segment; canvas output must not have one.
+        const jpg = await P.canvasToBlob(solidCanvas(24, 24), "JPG", 90, true);
+        const bytes = new Uint8Array(await jpg.arrayBuffer());
+        let hasExif = false;
+        for (let i = 0; i < bytes.length - 1; i++) {
+          if (bytes[i] === 0xFF && bytes[i + 1] === 0xE1) { hasExif = true; break; }
+        }
+        assert(!hasExif, "canvas emitted an APP1 segment — the note is now wrong");
+      });
+
+      // ── Bug 6: reported sizes are measured, not modelled ───────────────────
+      await test("processConvert reports the real output byte count", async () => {
+        const png  = await P.canvasToBlob(solidCanvas(64, 64), "PNG", 90, true);
+        const file = { id: 7, name: "solid.png", fileObj: new File([png], "solid.png", { type: "image/png" }) };
+        let captured = null;
+        const orig = HTMLAnchorElement.prototype.click;          // keep the disk clean
+        HTMLAnchorElement.prototype.click = function () { if (!this.download) return orig.call(this); };
+        try {
+          const { sizes } = await new Promise(r => {
+            P.processConvert([file], { format: "WEBP", quality: 82, transparent: true },
+              () => {}, (ok, errors, sizes) => r({ sizes }));
+          });
+          captured = sizes;
+        } finally { HTMLAnchorElement.prototype.click = orig; }
+
+        assert(captured.length === 1, "expected one size entry");
+        assert(captured[0].id === 7, "size is not tied to the file id");
+        // Encode the same canvas independently — the reported number must match
+        // the encoder, not a formula.
+        const expected = (await P.canvasToBlob(
+          P.getSourceCanvas ? await P.getSourceCanvas(file) : null, "WEBP", 82, true)).size;
+        assert(captured[0].bytes === expected,
+          `reported ${captured[0].bytes}, encoder produced ${expected}`);
+      });
+
+      await test("a failed file contributes no size entry", async () => {
+        const { errors, sizes } = await new Promise(r => {
+          P.processConvert([brokenFile()], { format: "PNG", quality: 90 },
+            () => {}, (ok, errors, sizes) => r({ errors, sizes }));
+        });
+        assert(errors.length === 1, "expected the failure");
+        assert(sizes.length === 0, "a failed file must not report bytes");
+      });
+
+      // ponytail: single-file cases only — anything with 2+ files takes the zip
+      // path and would write to the user's Downloads folder mid-test.
+
+      const s = document.getElementById("summary");
+      s.textContent = `${pass} passed, ${fail} failed`;
+      s.className = fail ? "fail" : "ok";
+    })();
+  </script>
+</body>
+</html>

@@ -4,21 +4,22 @@ const SAMPLE_FILES = [
   { id: 1, name: "sunset-dunes-2024.png",    ext: "PNG",  size: 4_820_000, w: 4032, h: 3024, palette: ["#ff8a5b","#ffd16e","#7a4a8a"] },
   { id: 2, name: "studio-portrait-01.jpeg",  ext: "JPEG", size: 6_140_000, w: 3000, h: 4000, palette: ["#f4d6c0","#c98668","#3a2a2a"] },
   { id: 3, name: "logo-stamp-final.svg",     ext: "SVG",  size: 62_400,    w: 512,  h: 512,  palette: ["#1f2a4a","#ff7a59","#fbf3e4"] },
-  { id: 4, name: "lake-pano-morning.tif",    ext: "TIF",  size: 22_900_000,w: 7680, h: 2160, palette: ["#a9d4e8","#f8e4b5","#3c628a"] },
+  { id: 4, name: "lake-pano-morning.gif",    ext: "GIF",  size: 22_900_000,w: 7680, h: 2160, palette: ["#a9d4e8","#f8e4b5","#3c628a"] },
   { id: 5, name: "product-mock-back.webp",   ext: "WEBP", size: 480_000,   w: 1600, h: 1600, palette: ["#bfa4ff","#3a2f64","#fcd3e2"] },
 ];
 
-const FORMATS     = ["PNG","JPG","WEBP","AVIF","GIF","BMP","TIFF","PDF","ICO"];
-const ALL_FORMATS = ["BMP","CR2","CR3","DNG","EPS","ICO","JPG","JPEG","NEF","ODD","ORF","PNG","PSD","RAF","RAW","RW2","SVG","TGA","TIFF","TIF","WEBP"];
+// Output formats we can actually encode. GIF and TIFF are absent on purpose:
+// canvas can't produce either, and the old code shipped WEBP/PNG bytes under
+// a .gif/.tif name. Adding them back means bundling a real encoder.
+const FORMATS     = ["PNG","JPG","WEBP","AVIF","BMP","PDF","ICO"];
+// Input formats a browser can decode. Camera RAW (CR2, NEF, DNG…), PSD and EPS
+// are not among them — listing them only produced failed conversions.
+const ALL_FORMATS = ["AVIF","BMP","GIF","ICO","JPG","JPEG","PNG","SVG","WEBP"];
 
 // Formats that support a quality/compression slider
-const FMT_HAS_QUALITY = new Set(["JPG","WEBP","AVIF","GIF","PDF"]);
-// Formats that support EXIF metadata preservation
-const FMT_HAS_EXIF    = new Set(["JPG","WEBP","AVIF","TIFF","PDF"]);
-// Formats that support sRGB profile embedding
-const FMT_HAS_SRGB    = new Set(["JPG","WEBP","AVIF","PNG","TIFF","PDF"]);
+const FMT_HAS_QUALITY = new Set(["JPG","WEBP","AVIF","PDF"]);
 // Formats that support transparency
-const FMT_HAS_ALPHA   = new Set(["PNG","WEBP","AVIF","GIF"]);
+const FMT_HAS_ALPHA   = new Set(["PNG","WEBP","AVIF"]);
 const ICO_SIZES  = [8,16,24,32,48,64,128,256,512];
 
 function formatBytes(n) {
@@ -52,25 +53,10 @@ function Thumb({ palette }) {
   );
 }
 
-function calcFactor(fmt, quality) {
-  const q = (quality || 82) / 100;
-  switch (fmt) {
-    case "JPG":  return 0.04 + q * 0.22;
-    case "WEBP": return 0.02 + q * 0.12;
-    case "AVIF": return 0.01 + q * 0.09;
-    case "PNG":  return 0.60 + q * 0.15;
-    case "GIF":  return 0.40 + q * 0.12;
-    case "BMP":  return 1.8;
-    case "TIFF": return 1.4;
-    case "PDF":  return 0.18 + q * 0.10;
-    case "ICO":  return 0.05;
-    default:     return 0.3;
-  }
-}
-
-function FileRow({ file, targetFmt, quality, progress, state, onRemove }) {
-  const factor    = calcFactor(targetFmt, quality);
-  const estimated = Math.max(20_000, file.size * factor);
+// There is no size to show until the file has actually been encoded — the old
+// per-format guess factors were invented numbers shown as fact.
+function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }) {
+  const failed = state === "error";
   return (
     <div className={"file-row " + (state || "")}>
       <div className="thumb"><ThumbOrImg file={file} /></div>
@@ -80,13 +66,15 @@ function FileRow({ file, targetFmt, quality, progress, state, onRemove }) {
           <span className="from">{file.ext}</span>
           <span className="arrow">→</span>
           <span className="to">{targetFmt}</span>
-          <span>·</span>
-          <span>{file.w}×{file.h}</span>
+          {file.w > 0 && <><span>·</span><span>{file.w}×{file.h}</span></>}
         </div>
       </div>
       <div className="size">
         <span>{formatBytes(file.size)}</span>
-        <span className="new" style={{ fontWeight:"500" }}>{formatBytes(estimated)}</span>
+        {failed && <span className="new err">{error}</span>}
+        {!failed && outBytes != null && (
+          <span className="new" style={{ fontWeight:"500" }}>{formatBytes(outBytes)}</span>
+        )}
       </div>
       <button className="x" onClick={() => onRemove(file.id)} aria-label="Remove">
         <Icon name="x" size={14} />
@@ -100,12 +88,11 @@ function FileRow({ file, targetFmt, quality, progress, state, onRemove }) {
 
 function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, onStart, onAddFiles }) {
   const [clearHover, setClearHover] = React.useState(false);
-  const factor         = calcFactor(settings.format, settings.quality);
-  const totalSize      = files.reduce((a, f) => a + f.size, 0);
-  const estimatedTotal = totalSize * factor;
-  const saved          = Math.max(0, totalSize - estimatedTotal);
+  const totalSize = files.reduce((a, f) => a + f.size, 0);
 
   const [progress, setProgress] = React.useState({});
+  const [errors,   setErrors]   = React.useState([]);
+  const [outSizes, setOutSizes] = React.useState(null);   // measured, set on completion
   const [elapsed,  setElapsed]  = React.useState(0);
   const timerRef = React.useRef(null);
 
@@ -127,24 +114,46 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   React.useEffect(() => {
     if (mode !== "converting") return;
     setProgress({});
+    setErrors([]);
+    setOutSizes(null);
     let cancelled = false;
 
     Processor.processConvert(
       files,
       settings,
-      (fileId, pct) => {
+      (fileId, pct, state) => {
         if (cancelled) return;
-        setProgress(prev => ({ ...prev, [fileId]: { v: pct, state: pct >= 100 ? "done" : "going" } }));
+        setProgress(prev => ({ ...prev, [fileId]: { v: pct, state: state || (pct >= 100 ? "done" : "going") } }));
       },
-      () => {
-        if (!cancelled) setTimeout(() => setMode("done"), 300);
+      (ok, errs, sizes) => {
+        if (cancelled) return;
+        setErrors(errs || []);
+        setOutSizes(sizes || []);
+        setTimeout(() => setMode("done"), 300);
       }
     );
 
     return () => { cancelled = true; };
   }, [mode]);
 
-  const completed = Object.values(progress).filter(p => p.state === "done").length;
+  // A failed file is finished too — otherwise the bar never reaches 100%.
+  const errorText = React.useMemo(() => Object.fromEntries(errors.map(e =>
+    [e.id, e.fmt ? t.convert.errFormat.replace("{fmt}", e.fmt) : t.convert.errRead]
+  )), [errors, t]);
+  const allFailed = errors.length > 0 && errors.length === files.length;
+  const completed = Object.values(progress).filter(p => p.state === "done" || p.state === "error").length;
+
+  // Real byte counts, available only once the encode has happened.
+  const results   = mode === "done" && outSizes ? outSizes : null;
+  const outById   = React.useMemo(
+    () => Object.fromEntries((results || []).filter(s => s.id != null).map(s => [s.id, s.bytes])),
+    [results]);
+  const totalOut  = (results || []).reduce((a, s) => a + s.bytes, 0);
+  const failedIds = new Set(errors.map(e => e.id));
+  const inputDone = files.filter(f => !failedIds.has(f.id)).reduce((a, f) => a + f.size, 0);
+  const saved     = Math.max(0, inputDone - totalOut);
+  const reductionPct = inputDone > 0 ? Math.round((1 - totalOut / inputDone) * 100) : 0;
+  const [headNum, headUnit] = formatBytes(results ? saved : totalSize).split(" ");
   const overall   = files.length
     ? (completed * 100 + (Object.values(progress).find(p => p.state === "going")?.v || 0)) / files.length
     : 0;
@@ -153,14 +162,10 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const isICO       = fmt === "ICO";
   const isPDF       = fmt === "PDF";
   const hasQuality  = FMT_HAS_QUALITY.has(fmt);
-  const hasExif     = FMT_HAS_EXIF.has(fmt);
-  const hasSrgb     = FMT_HAS_SRGB.has(fmt);
   const hasAlpha    = FMT_HAS_ALPHA.has(fmt);
   const icoSizes    = settings.icoSizes    || [16,32,48,256];
   const icoKeepOrig = settings.icoKeepOriginal !== false;
   const mergePDF    = !!settings.mergePDF;
-  const reductionPct = Math.round((1 - factor) * 100);
-  const [savedNum, savedUnit] = formatBytes(saved).split(" ");
 
   return (
     <div className="file-stage">
@@ -189,20 +194,28 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         )}
 
         {mode === "done" && (
-          <div className="done-banner">
-            <div className="check"><Icon name="check" size={20} stroke={2.6} /></div>
+          <div className={"done-banner" + (allFailed ? " failed" : "")}>
+            <div className="check">
+              <Icon name={allFailed ? "x" : "check"} size={20} stroke={2.6} />
+            </div>
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 700, fontSize: 15 }}>{t.convert.doneTitle}</div>
+              <div style={{ fontWeight: 700, fontSize: 15 }}>
+                {errors.length > 0 ? t.convert.failTitle : t.convert.doneTitle}
+              </div>
               <div style={{ fontSize: 13, opacity: .85 }}>
-                {t.convert.doneSub.replace("{n}", files.length).replace("{saved}", formatBytes(saved))}
+                {errors.length > 0
+                  ? t.convert.failSub.replace("{n}", errors.length).replace("{total}", files.length)
+                  : t.convert.doneSub.replace("{n}", files.length - errors.length).replace("{saved}", formatBytes(saved))}
               </div>
             </div>
             <button className="btn ghost" onClick={() => setMode("idle")}>
               <Icon name="rotate" size={14} /> {t.convert.again}
             </button>
-            <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"var(--ink-3)", fontWeight:500 }}>
-              <Icon name="folder" size={13} /> Downloads ↓
-            </span>
+            {!allFailed && (
+              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"var(--ink-3)", fontWeight:500 }}>
+                <Icon name="folder" size={13} /> Downloads ↓
+              </span>
+            )}
           </div>
         )}
 
@@ -244,9 +257,10 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
                   key={f.id}
                   file={f}
                   targetFmt={settings.format}
-                  quality={settings.quality}
+                  outBytes={outById[f.id]}
                   progress={p?.v}
-                  state={mode === "done" ? "done" : p?.state}
+                  state={p?.state === "error" ? "error" : (mode === "done" ? "done" : p?.state)}
+                  error={errorText[f.id]}
                   onRemove={id => setFiles(files.filter(x => x.id !== id))}
                 />
               );
@@ -354,38 +368,22 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
           </div>
         )}
 
-        {/* Metadata toggles — only shown when the format supports each option */}
-        {(hasExif || hasSrgb || hasAlpha) && (
-          <div className="field">
-            {hasExif && (
-              <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
-                <span>{t.convert.preserve}</span>
-                <div className={"toggle " + (settings.exif ? "on" : "")}
-                  onClick={() => setSettings({ ...settings, exif: !settings.exif })}>
-                  <div className="dot" />
-                </div>
+        {/* Transparency is the only one of these canvas can actually honour —
+            EXIF and ICC toggles used to sit here doing nothing. */}
+        <div className="field">
+          {hasAlpha && (
+            <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
+              <span>{t.convert.transparent}</span>
+              <div className={"toggle " + (settings.transparent ? "on" : "")}
+                onClick={() => setSettings({ ...settings, transparent: !settings.transparent })}>
+                <div className="dot" />
               </div>
-            )}
-            {hasSrgb && (
-              <div className="toggle-row">
-                <span>{t.convert.colorProfile}</span>
-                <div className={"toggle " + (settings.srgb ? "on" : "")}
-                  onClick={() => setSettings({ ...settings, srgb: !settings.srgb })}>
-                  <div className="dot" />
-                </div>
-              </div>
-            )}
-            {hasAlpha && (
-              <div className="toggle-row">
-                <span>{t.convert.transparent}</span>
-                <div className={"toggle " + (settings.transparent ? "on" : "")}
-                  onClick={() => setSettings({ ...settings, transparent: !settings.transparent })}>
-                  <div className="dot" />
-                </div>
-              </div>
-            )}
+            </div>
+          )}
+          <div style={{ fontSize: 11.5, color: "var(--ink-3)", paddingTop: hasAlpha ? 10 : 0, lineHeight: 1.45 }}>
+            {t.convert.metaNote}
           </div>
-        )}
+        </div>
 
         {/* Output folder */}
         <div className="field">
@@ -405,22 +403,24 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
           </div>
         </div>
 
-        {/* Summary card */}
+        {/* Summary card — queue size before, measured savings after */}
         <div className="summary">
           <div className="summary-top">
-            <span className="lab">{t.convert.total}</span>
-            <span className="summary-pill">−{reductionPct}%</span>
+            <span className="lab">{results ? t.convert.total : t.convert.queued}</span>
+            {results && <span className="summary-pill">−{reductionPct}%</span>}
           </div>
           <div className="summary-num" style={{ fontFamily: "Fraunces" }}>
-            {savedNum}<span className="unit">{savedUnit}</span>
+            {headNum}<span className="unit">{headUnit}</span>
           </div>
-          <div className="summary-bar">
-            <div className="summary-bar-fill" style={{ width: reductionPct + "%" }} />
-          </div>
+          {results && (
+            <div className="summary-bar">
+              <div className="summary-bar-fill" style={{ width: Math.max(0, reductionPct) + "%" }} />
+            </div>
+          )}
           <div className="summary-foot">
             <span>{formatBytes(totalSize)}</span>
-            <span className="arr">→</span>
-            <span className="emph">{formatBytes(estimatedTotal)}</span>
+            {results && <span className="arr">→</span>}
+            {results && <span className="emph">{formatBytes(totalOut)}</span>}
             <span style={{ marginLeft: "auto" }}>{settings.format}</span>
           </div>
         </div>

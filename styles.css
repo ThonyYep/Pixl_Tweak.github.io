@@ -721,6 +721,31 @@ body::before {
 .file-row.done .size .new::before { content: "✓ "; }
 .file-row.done .x { display: none; }
 
+/* Error red is fixed, not accent-derived — the accent is user-picked and
+   could land on green. */
+.file-row.error { background: linear-gradient(90deg, rgba(229,72,77,.14), transparent 60%); }
+.file-row.error .progress-track .fill { background: #e5484d; }
+.file-row .size .new.err {
+  color: #e5484d;
+  font-weight: 600;
+  font-size: 11.5px;
+  white-space: nowrap;
+}
+.file-row .size .new.err::before { content: "✕ "; }
+
+.error-note {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 10px;
+  padding: 9px 11px;
+  border-radius: var(--radius-sm);
+  background: rgba(229,72,77,.12);
+  color: #e5484d;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 /* ─── right rail (settings) ───────────────────────────────────── */
 .rail {
   background: var(--surface);
@@ -1028,6 +1053,11 @@ body::before {
   align-items: center;
   gap: 14px;
 }
+.done-banner.failed {
+  background: linear-gradient(120deg, rgba(229,72,77,.16), rgba(229,72,77,.06));
+  color: #b0343a;
+}
+.done-banner.failed .check { background: #e5484d; }
 .done-banner .check {
   width: 36px;
   height: 36px;

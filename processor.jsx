@@ -84,8 +84,9 @@ function resizeCanvas(src, targetW, targetH, fit) {
   const canvas = document.createElement("canvas");
   canvas.width = targetW; canvas.height = targetH;
   const ctx = canvas.getContext("2d");
-  ctx.fillStyle = "#ffffff";
-  ctx.fillRect(0, 0, targetW, targetH);
+  // No background fill: only 'contain' leaves bars, and canvasToBlob already
+  // flattens onto white for JPG or when the user turns transparency off.
+  // Filling here destroyed the alpha channel on every PNG/WEBP resize.
   if (fit === 2) {
     ctx.drawImage(src, 0, 0, targetW, targetH);
   } else {
@@ -202,7 +203,8 @@ async function encodePDF(canvas) {
 async function canvasToBlob(canvas, format, quality, transparent) {
   const q = (quality || 82) / 100;
   if (format === "BMP") return encodeBMP(canvas);
-  const noAlpha = !transparent && (format === "JPG" || format === "GIF");
+  // JPG has no alpha channel at all; the others flatten only if the user asked.
+  const noAlpha = format === "JPG" || transparent === false;
   let src = canvas;
   if (noAlpha) {
     const flat = document.createElement("canvas");
@@ -218,22 +220,27 @@ async function canvasToBlob(canvas, format, quality, transparent) {
     JPG:  ["image/jpeg", q],
     WEBP: ["image/webp", q],
     AVIF: ["image/avif", q],
-    GIF:  ["image/webp", q],
-    TIFF: ["image/png",  1.0],
   };
   const [mime, qVal] = mimeMap[format] || ["image/png", 1.0];
-  return new Promise(resolve => {
-    src.toBlob(blob => {
-      if (blob) { resolve(blob); return; }
-      src.toBlob(resolve, "image/webp", q); // AVIF fallback
-    }, mime, qVal);
-  });
+  const blob = await new Promise(resolve => src.toBlob(resolve, mime, qVal));
+  // toBlob does not fail on a mime the browser can't encode — it quietly hands
+  // back PNG. Comparing blob.type is the only way to catch it, and without this
+  // we'd ship PNG bytes under a .avif name.
+  if (!blob || blob.type !== mime) throw new Error("UNSUPPORTED_OUTPUT:" + format);
+  return blob;
 }
 
 function getOutputName(originalName, format) {
   const base = originalName.replace(/\.[^/.]+$/, "");
-  const extMap = { JPG:"jpg", PNG:"png", WEBP:"webp", AVIF:"avif", GIF:"gif", BMP:"bmp", TIFF:"tif", PDF:"pdf", ICO:"ico" };
+  const extMap = { JPG:"jpg", PNG:"png", WEBP:"webp", AVIF:"avif", BMP:"bmp", PDF:"pdf", ICO:"ico" };
   return base + "." + (extMap[format] || format.toLowerCase());
+}
+
+// Thrown errors → { id, name, fmt }. fmt is set when the browser refused to
+// encode that output format, null when the source image couldn't be decoded.
+function toFileError(file, err) {
+  const m = /^UNSUPPORTED_OUTPUT:(\w+)/.exec((err && err.message) || "");
+  return { id: file.id, name: file.name, fmt: m ? m[1] : null };
 }
 
 function downloadBlob(blob, filename) {
@@ -280,7 +287,8 @@ async function processConvert(files, settings, onProgress, onDone) {
   const doMergePDF = isPDF && mergePDF && files.length > 1;
   const isMulti    = files.length > 1 || isICO;
   const zipEntries = [];
-  let ok = true;
+  const errors     = [];
+  const sizes      = [];   // { id, bytes } — measured output, never estimated
 
   // ── Merge-PDF path: collect all canvases then emit one file ──────────────
   if (doMergePDF) {
@@ -294,19 +302,25 @@ async function processConvert(files, settings, onProgress, onDone) {
         onProgress(file.id, 80);
       } catch (err) {
         console.error("processConvert merge error:", file.name, err);
-        ok = false;
-        onProgress(file.id, 100);
+        errors.push(toFileError(file, err));
+        onProgress(file.id, 100, "error");
       }
     }
-    try {
-      const mergedBlob = await encodeMergedPDF(canvases);
-      if (mergedBlob) downloadBlob(mergedBlob, "merged.pdf");
-    } catch (err) {
-      console.error("encodeMergedPDF error:", err);
-      ok = false;
+    if (canvases.length > 0) {
+      try {
+        const mergedBlob = await encodeMergedPDF(canvases);
+        if (mergedBlob) {
+          downloadBlob(mergedBlob, "merged.pdf");
+          sizes.push({ id: null, bytes: mergedBlob.size });  // one file, no owner row
+        }
+      } catch (err) {
+        console.error("encodeMergedPDF error:", err);
+        files.forEach(f => errors.push({ id: f.id, name: f.name, fmt: "PDF" }));
+      }
     }
-    files.forEach(f => onProgress(f.id, 100));
-    onDone(ok);
+    const failed = new Set(errors.map(e => e.id));
+    files.forEach(f => { if (!failed.has(f.id)) onProgress(f.id, 100); });
+    onDone(errors.length === 0, errors, sizes);
     return;
   }
 
@@ -318,24 +332,28 @@ async function processConvert(files, settings, onProgress, onDone) {
       const canvas = await getSourceCanvas(file);
       onProgress(file.id, 35);
       const baseName = file.name.replace(/\.[^/.]+$/, "");
+      let outBytes = 0;
 
       if (isICO) {
-        const sizes    = (icoSizes && icoSizes.length > 0 ? icoSizes : [16,32,48,256]).filter(s => s <= 256);
+        const icoPx     = (icoSizes && icoSizes.length > 0 ? icoSizes : [16,32,48,256]).filter(s => s <= 256);
         const sizedPngs = [];
-        for (let j = 0; j < sizes.length; j++) {
-          const s   = sizes[j];
+        for (let j = 0; j < icoPx.length; j++) {
+          const s   = icoPx[j];
           const c   = resizeContain(canvas, s);
           const png = await canvasToPng(c);
           sizedPngs.push({ size: s, blob: png });
           zipEntries.push({ path: `${baseName}/${s}x${s}/${baseName}.png`, blob: png });
-          onProgress(file.id, 35 + Math.round((j + 1) / sizes.length * 45));
+          outBytes += png.size;
+          onProgress(file.id, 35 + Math.round((j + 1) / icoPx.length * 45));
         }
         if (icoKeepOriginal) {
           const origPng = await canvasToPng(canvas);
           zipEntries.push({ path: `${baseName}/original/${baseName}.png`, blob: origPng });
+          outBytes += origPng.size;
         }
         const icoBlob = await encodeICO(sizedPngs);
         zipEntries.push({ path: `${baseName}/${baseName}.ico`, blob: icoBlob });
+        outBytes += icoBlob.size;
 
       } else if (isPDF) {
         if (!window.jspdf) throw new Error("jsPDF not loaded");
@@ -343,6 +361,7 @@ async function processConvert(files, settings, onProgress, onDone) {
         const outName = getOutputName(file.name, "PDF");
         if (isMulti) zipEntries.push({ path: outName, blob: pdfBlob });
         else downloadBlob(pdfBlob, outName);
+        outBytes = pdfBlob.size;
         onProgress(file.id, 85);
 
       } else {
@@ -350,14 +369,16 @@ async function processConvert(files, settings, onProgress, onDone) {
         const outName = getOutputName(file.name, format);
         if (isMulti) zipEntries.push({ path: outName, blob });
         else downloadBlob(blob, outName);
+        outBytes = blob.size;
         onProgress(file.id, 90);
       }
 
+      sizes.push({ id: file.id, bytes: outBytes });
       onProgress(file.id, 100);
     } catch (err) {
       console.error("processConvert error:", file.name, err);
-      ok = false;
-      onProgress(file.id, 100);
+      errors.push(toFileError(file, err));
+      onProgress(file.id, 100, "error");
     }
   }
 
@@ -367,7 +388,7 @@ async function processConvert(files, settings, onProgress, onDone) {
       : "pixl-tweak-export.zip";
     await downloadZip(zipEntries, zipName);
   }
-  onDone(ok);
+  onDone(errors.length === 0, errors, sizes);
 }
 
 async function processResize(files, resizeSettings, onProgress, onDone) {
@@ -376,6 +397,7 @@ async function processResize(files, resizeSettings, onProgress, onDone) {
   const ext     = extMap[format] || "webp";
   const isMulti = files.length > 1;
   const zipEntries = [];
+  const errors     = [];
 
   for (const file of files) {
     onProgress(file.id, 10);
@@ -393,18 +415,21 @@ async function processResize(files, resizeSettings, onProgress, onDone) {
       else downloadBlob(blob, outName);
       onProgress(file.id, 100);
     } catch (err) {
-      console.error("processResize error:", err);
-      onProgress(file.id, 100);
+      console.error("processResize error:", file.name, err);
+      errors.push(toFileError(file, err));
+      onProgress(file.id, 100, "error");
     }
   }
   if (zipEntries.length > 0) await downloadZip(zipEntries, "pixl-tweak-resized.zip");
-  onDone(true);
+  onDone(errors.length === 0, errors);
 }
 
 async function processCompress(files, compressSettings, onProgress, onDone) {
   const { format, quality, reduceColors, maxColors } = compressSettings;
   const isMulti    = files.length > 1;
   const zipEntries = [];
+  const errors     = [];
+  const sizes      = [];
 
   for (const file of files) {
     onProgress(file.id, 10);
@@ -419,20 +444,23 @@ async function processCompress(files, compressSettings, onProgress, onDone) {
       onProgress(file.id, 90);
       if (isMulti) zipEntries.push({ path: outName, blob });
       else downloadBlob(blob, outName);
+      sizes.push({ id: file.id, bytes: blob.size });
       onProgress(file.id, 100);
     } catch (err) {
-      console.error("processCompress error:", err);
-      onProgress(file.id, 100);
+      console.error("processCompress error:", file.name, err);
+      errors.push(toFileError(file, err));
+      onProgress(file.id, 100, "error");
     }
   }
   if (zipEntries.length > 0) await downloadZip(zipEntries, "pixl-tweak-compressed.zip");
-  onDone(true);
+  onDone(errors.length === 0, errors, sizes);
 }
 
 async function processCrop(files, cropSettings, onProgress, onDone) {
   const { crop, rotation, flipH, flipV } = cropSettings;
   const isMulti    = files.length > 1;
   const zipEntries = [];
+  const errors     = [];
 
   for (const file of files) {
     onProgress(file.id, 10);
@@ -476,12 +504,13 @@ async function processCrop(files, cropSettings, onProgress, onDone) {
       else downloadBlob(blob, outName);
       onProgress(file.id, 100);
     } catch (err) {
-      console.error("processCrop error:", err);
-      onProgress(file.id, 100);
+      console.error("processCrop error:", file.name, err);
+      errors.push(toFileError(file, err));
+      onProgress(file.id, 100, "error");
     }
   }
   if (zipEntries.length > 0) await downloadZip(zipEntries, "pixl-tweak-cropped.zip");
-  onDone(true);
+  onDone(errors.length === 0, errors);
 }
 
 // Shared React hook — exposes object URL for a file's fileObj
@@ -502,6 +531,8 @@ window.Processor = {
   generateSampleCanvas,
   getSourceCanvas,
   resizeCanvas,
+  canvasToBlob,
+  getOutputName,
   encodeBMP,
   encodeICO,
   encodePDF,
