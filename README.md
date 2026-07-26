@@ -80,7 +80,6 @@ encoder actually produced.
 | `icons.jsx`, `mascot.jsx` | SVG assets |
 | `styles.css` | Everything visual |
 | `selftest.html` | Browser test suite |
-| `tweaks-panel.jsx` | Design-tweak panel from the prototyping environment this started in. It only opens on a `postMessage` from a host frame, so it never renders on the published site. |
 
 ## License
 

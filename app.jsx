@@ -1,24 +1,20 @@
 // app.jsx — main shell
 
-const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
-  "accent":  "#6aa3ff",
-  "theme":   "light",
-  "tone":    "accent",
-  "density": "compact",
-  "radius":  18,
-  "mascot":  false,
-  "motion":  1,
-  "font":    "sans",
-  "lang":    "es"
-} /*EDITMODE-END*/;
+// Look-and-feel values that used to live in the prototyping host's tweak panel.
+// That panel only ever opened on a postMessage from a parent frame, so on the
+// published site none of these were reachable — they are plain constants now.
+const LOOK = {
+  accent:  "#6aa3ff",
+  tone:    "accent",
+  density: "compact",
+  radius:  18,
+  motion:  1,
+  font:    "sans",
+};
 
-const ACCENT_PALETTES = [
-  { name: "Coral",  accent: "#ff7a59" },
-  { name: "Butter", accent: "#e6a824" },
-  { name: "Sage",   accent: "#56b585" },
-  { name: "Lilac",  accent: "#b08aff" },
-  { name: "Sky",    accent: "#6aa3ff" },
-];
+// ponytail: no UI for the mascot since the panel went away — flip to true to
+// bring it back, or delete mascot.jsx along with this.
+const SHOW_MASCOT = false;
 
 function Tabs({ t, value, onChange, fileCount }) {
   const items = [
@@ -250,9 +246,9 @@ const PALETTES = [
 ];
 
 function App() {
-  const [tweak, setTweak] = useTweaks(TWEAK_DEFAULTS);
-  const lang = tweak.lang || "es";
-  const t    = COPY[lang];
+  const [theme, setTheme] = React.useState("light");
+  const [lang,  setLang]  = React.useState("es");
+  const t = COPY[lang];
 
   const [tab,  setTab]  = React.useState("convert");
   const [files, setFiles] = React.useState([]);
@@ -267,20 +263,23 @@ function App() {
     icoSizes:       [],
   });
 
-  // Apply tweaks to :root
+  // Fixed look — written once.
   React.useEffect(() => {
-    const palette = ACCENT_PALETTES.find(p => p.accent === tweak.accent) || ACCENT_PALETTES[4];
     const root = document.documentElement;
-    root.style.setProperty("--coral",     palette.accent);
-    root.style.setProperty("--radius-lg", tweak.radius * 1.4 + "px");
-    root.style.setProperty("--radius",    tweak.radius + "px");
-    root.style.setProperty("--radius-sm", Math.max(6, tweak.radius * .55) + "px");
-    root.style.setProperty("--motion",    tweak.motion);
-    root.setAttribute("data-theme",   tweak.theme);
-    root.setAttribute("data-tone",    tweak.tone);
-    root.setAttribute("data-density", tweak.density);
-    root.setAttribute("data-font",    tweak.font);
-  }, [tweak]);
+    root.style.setProperty("--coral",     LOOK.accent);
+    root.style.setProperty("--radius-lg", LOOK.radius * 1.4 + "px");
+    root.style.setProperty("--radius",    LOOK.radius + "px");
+    root.style.setProperty("--radius-sm", Math.max(6, LOOK.radius * .55) + "px");
+    root.style.setProperty("--motion",    LOOK.motion);
+    root.setAttribute("data-tone",    LOOK.tone);
+    root.setAttribute("data-density", LOOK.density);
+    root.setAttribute("data-font",    LOOK.font);
+  }, []);
+
+  // The only thing the user can actually switch.
+  React.useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+  }, [theme]);
 
   const fileInputRef = React.useRef(null);
 
@@ -385,7 +384,7 @@ function App() {
         </div>
 
         <div className="app">
-          {tweak.mascot && <Mascot />}
+          {SHOW_MASCOT && <Mascot />}
 
           <header className="app-header">
             <div className="app-title">
@@ -393,11 +392,11 @@ function App() {
               <div className="sub">{t.appSub}</div>
             </div>
             <div className="controls">
-              <LangToggle lang={lang} onChange={v => setTweak("lang", v)} />
+              <LangToggle lang={lang} onChange={setLang} />
               <button className="iconbtn"
-                onClick={() => setTweak("theme", tweak.theme === "dark" ? "light" : "dark")}
+                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
                 title="Toggle theme">
-                <Icon name={tweak.theme === "dark" ? "sun" : "moon"} size={16} />
+                <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
               </button>
             </div>
           </header>
@@ -422,25 +421,6 @@ function App() {
           )}
         </div>
       </div>
-
-      <TweaksPanel>
-        <TweakSection label="Language" />
-        <TweakRadio label="Idioma / Language" value={tweak.lang} options={["es","en"]} onChange={v => setTweak("lang", v)} />
-
-        <TweakSection label="Theme" />
-        <TweakRadio  label="Mode"         value={tweak.theme}   options={["light","dark"]}                onChange={v => setTweak("theme", v)} />
-        <TweakColor  label="Accent"       value={tweak.accent}  options={ACCENT_PALETTES.map(p => p.accent)} onChange={v => setTweak("accent", v)} />
-        <TweakSelect label="Surface tone" value={tweak.tone}    options={["warm","cool","mist","accent"]} onChange={v => setTweak("tone", v)} />
-        <TweakSelect label="Font"         value={tweak.font}    options={["serif","sans","rounded"]}      onChange={v => setTweak("font", v)} />
-
-        <TweakSection label="Layout" />
-        <TweakRadio  label="Density"       value={tweak.density} options={["compact","regular","comfy"]} onChange={v => setTweak("density", v)} />
-        <TweakSlider label="Corner radius" value={tweak.radius}  min={4} max={32} step={1} unit="px"    onChange={v => setTweak("radius", v)} />
-
-        <TweakSection label="Personality" />
-        <TweakToggle label="Mascot"              value={tweak.mascot} onChange={v => setTweak("mascot", v)} />
-        <TweakSlider label="Animation intensity" value={tweak.motion} min={0} max={2} step={0.1}           onChange={v => setTweak("motion", v)} />
-      </TweaksPanel>
     </div>
   );
 }
