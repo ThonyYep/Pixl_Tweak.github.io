@@ -90,7 +90,7 @@ encoder actually produced.
 | `convert.jsx` | Convert tab, file list, settings rail |
 | `other-tools.jsx` | Resize, Compress, Crop tabs |
 | `copy.jsx` | All ES/EN strings |
-| `icons.jsx` | SVG icon set |
+| `icons.jsx` + `icons.svg` | `<Icon>` wrapper and the 30-symbol sprite it references |
 | `styles.css` | Everything visual |
 | `build.mjs` | esbuild transform → `bundle.js`, `selftest.bundle.js` |
 | `selftest.html` + `selftest-cases.js` | Browser test suite |
