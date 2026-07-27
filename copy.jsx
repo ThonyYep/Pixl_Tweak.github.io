@@ -47,7 +47,6 @@ const COPY = {
       errFormat: "{fmt} not supported here",
       errRead: "Couldn't read this file",
       errTooBig: "Too big for this browser ({dims})",
-      openFolder: "Open folder",
       again: "Convert more",
       filesIn: "files in queue",
       icoKeepOriginal: "Keep Original Resolution",
@@ -60,15 +59,6 @@ const COPY = {
 
     resize: {
       heading: "Resize dimensions",
-      preset: "Preset",
-      presets: [
-        ["Original", "—"],
-        ["HD", "1920×1080"],
-        ["Web", "1280×720"],
-        ["Square", "1080×1080"],
-        ["Story", "1080×1920"],
-        ["Custom", "any"],
-      ],
       width: "Width",
       height: "Height",
       lock: "Lock aspect ratio",
@@ -116,11 +106,7 @@ const COPY = {
     },
 
     common: {
-      cancel: "Cancel",
       go: "Start",
-      addMore: "Add files",
-      remove: "Remove",
-      processing: "Processing",
       ready: "Ready",
       saved: "saved",
     },
@@ -178,7 +164,6 @@ const COPY = {
       errFormat: "{fmt} no soportado aquí",
       errRead: "No se pudo leer este archivo",
       errTooBig: "Demasiado grande para este navegador ({dims})",
-      openFolder: "Abrir carpeta",
       again: "Convertir más",
       filesIn: "archivos en la cola",
       icoKeepOriginal: "Mantener resolución original",
@@ -191,15 +176,6 @@ const COPY = {
 
     resize: {
       heading: "Cambiar dimensiones",
-      preset: "Predefinido",
-      presets: [
-        ["Original", "—"],
-        ["HD", "1920×1080"],
-        ["Web", "1280×720"],
-        ["Cuadrado", "1080×1080"],
-        ["Historia", "1080×1920"],
-        ["Personalizado", "cualquiera"],
-      ],
       width: "Ancho",
       height: "Alto",
       lock: "Bloquear proporción",
@@ -247,11 +223,7 @@ const COPY = {
     },
 
     common: {
-      cancel: "Cancelar",
       go: "Iniciar",
-      addMore: "Añadir archivos",
-      remove: "Quitar",
-      processing: "Procesando",
       ready: "Listo",
       saved: "ahorrados",
     },
