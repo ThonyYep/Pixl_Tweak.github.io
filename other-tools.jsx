@@ -286,13 +286,17 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <ErrorNote t={t} errors={errors} />
 
         <div className="actions">
-          <button className="btn primary"
-            disabled={processing || files.length === 0}
-            style={{ justifyContent:"center" }}
-            onClick={handleApply}>
-            <Icon name="sparkle" size={16} />
-            {processing ? "…" : t.resize.apply}
-          </button>
+          {processing
+            ? <button className="btn ghost" style={{ justifyContent:"center" }}
+                onClick={() => Processor.cancelJob()}>
+                <Icon name="x" size={16} /> {t.convert.cancel}
+              </button>
+            : <button className="btn primary"
+                disabled={files.length === 0}
+                style={{ justifyContent:"center" }}
+                onClick={handleApply}>
+                <Icon name="sparkle" size={16} /> {t.resize.apply}
+              </button>}
         </div>
       </aside>
     </div>
@@ -535,13 +539,17 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <ErrorNote t={t} errors={errors} />
 
         <div className="actions">
-          <button className="btn primary"
-            disabled={processing || !selectedFile || (reduceColors && maxColors === null)}
-            style={{ justifyContent:"center" }}
-            onClick={handleStart}>
-            <Icon name="sparkle" size={16} />
-            {processing ? "…" : t.compress.start}
-          </button>
+          {processing
+            ? <button className="btn ghost" style={{ justifyContent:"center" }}
+                onClick={() => Processor.cancelJob()}>
+                <Icon name="x" size={16} /> {t.convert.cancel}
+              </button>
+            : <button className="btn primary"
+                disabled={!selectedFile || (reduceColors && maxColors === null)}
+                style={{ justifyContent:"center" }}
+                onClick={handleStart}>
+                <Icon name="sparkle" size={16} /> {t.compress.start}
+              </button>}
         </div>
       </aside>
     </div>
@@ -908,13 +916,17 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           <button className="btn ghost" onClick={handleReset}>
             <Icon name="undo" size={14} /> {t.crop.reset}
           </button>
-          <button className="btn primary"
-            disabled={processing || !selectedFile}
-            style={{ justifyContent:"center" }}
-            onClick={handleApply}>
-            <Icon name="sparkle" size={16} />
-            {processing ? "…" : t.crop.apply}
-          </button>
+          {processing
+            ? <button className="btn ghost" style={{ justifyContent:"center" }}
+                onClick={() => Processor.cancelJob()}>
+                <Icon name="x" size={16} /> {t.convert.cancel}
+              </button>
+            : <button className="btn primary"
+                disabled={!selectedFile}
+                style={{ justifyContent:"center" }}
+                onClick={handleApply}>
+                <Icon name="sparkle" size={16} /> {t.crop.apply}
+              </button>}
         </div>
       </aside>
     </div>

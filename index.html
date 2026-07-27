@@ -38,6 +38,9 @@
 <body style="font-family: Nunito">
   <div id="root"></div>
 
+  <!-- The pixel pipeline. Plain JS on purpose: worker.js importScripts() the
+       same file, so both threads run one implementation. -->
+  <script src="engine.js"></script>
   <!-- Built from the .jsx sources by build.mjs — run `npm run build` after editing them. -->
   <script src="bundle.js"></script>
 </body>

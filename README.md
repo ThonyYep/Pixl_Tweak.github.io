@@ -29,6 +29,9 @@ PNG. Every size reported is measured, never modelled.
 After a run, the preview becomes a **before/after wipe** you can drag, or move
 with the arrow keys once it has focus.
 
+All four tools run in a Web Worker, so the page stays responsive and any job
+can be cancelled mid-queue — finished files are kept, the rest are dropped.
+
 **Crop & Rotate** — draggable crop box with aspect presets, free rotation from
 −180° to 180°, and horizontal / vertical flips.
 
@@ -91,7 +94,9 @@ encoder actually produced.
 | File | |
 |---|---|
 | `index.html` | Entry point, CDN scripts, meta tags |
-| `processor.jsx` | The engine — decode, resize, encode, ZIP, PDF, hand-written BMP and ICO writers |
+| `engine.js` | The pixel pipeline — decode, resize, encode, target-size search, hand-written BMP and ICO writers. No DOM, so it runs in both threads |
+| `worker.js` | Loads `engine.js` and runs jobs off the main thread |
+| `processor.jsx` | Orchestration: dispatch to the worker, then ZIP, PDF and downloads, which need the DOM |
 | `app.jsx` | Shell, tabs, file intake, theme |
 | `convert.jsx` | Convert tab, file list, settings rail |
 | `other-tools.jsx` | Resize, Compress, Crop tabs |

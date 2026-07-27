@@ -128,6 +128,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const [progress, setProgress] = React.useState({});
   const [errors,   setErrors]   = React.useState([]);
   const [outSizes, setOutSizes] = React.useState(null);   // measured, set on completion
+  const [stopped,  setStopped]  = React.useState(false);
   const [elapsed,  setElapsed]  = React.useState(0);
   const timerRef = React.useRef(null);
 
@@ -151,6 +152,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
     setProgress({});
     setErrors([]);
     setOutSizes(null);
+    setStopped(false);
     let cancelled = false;
 
     Processor.processConvert(
@@ -160,10 +162,11 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         if (cancelled) return;
         setProgress(prev => ({ ...prev, [fileId]: { v: pct, state: state || (pct >= 100 ? "done" : "going") } }));
       },
-      (ok, errs, sizes) => {
+      (ok, errs, sizes, wasCancelled) => {
         if (cancelled) return;
         setErrors(errs || []);
         setOutSizes(sizes || []);
+        setStopped(!!wasCancelled);
         setTimeout(() => setMode("done"), 300);
       }
     );
@@ -225,6 +228,9 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             <div className="bar" style={{ flex: 1, maxWidth: 220 }}>
               <div className="fill" style={{ width: overall + "%" }} />
             </div>
+            <button className="btn ghost" onClick={() => Processor.cancelJob()}>
+              <Icon name="x" size={14} /> {t.convert.cancel}
+            </button>
           </div>
         )}
 
@@ -238,7 +244,9 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
                 {errors.length > 0 ? t.convert.failTitle : t.convert.doneTitle}
               </div>
               <div style={{ fontSize: 13, opacity: .85 }}>
-                {errors.length > 0
+                {stopped
+                  ? t.convert.cancelled.replace("{n}", (outSizes || []).length).replace("{total}", files.length)
+                  : errors.length > 0
                   ? t.convert.failSub.replace("{n}", errors.length).replace("{total}", files.length)
                   : t.convert.doneSub.replace("{n}", files.length - errors.length).replace("{saved}", formatBytes(saved))}
               </div>
