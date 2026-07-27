@@ -46,22 +46,36 @@ function brokenFile() {
     assert(b.type === "image/webp", "got " + b.type);
   });
 
-  // The regression that mattered: toBlob hands back PNG for a mime it can't
-  // encode. Either we get real AVIF, or we refuse — never PNG named .avif.
-  await test("AVIF encodes as image/avif or throws (never mislabels)", async () => {
-    let blob = null;
-    try {
-      blob = await P.canvasToBlob(solidCanvas(), "AVIF", 82, true);
-    } catch (e) {
-      assert(/^UNSUPPORTED_OUTPUT:AVIF/.test(e.message), "wrong error: " + e.message);
-      return;
+  // The regression that started all this: toBlob hands back PNG for a mime it
+  // cannot encode, so a format the encoder does not know must be refused, not
+  // quietly turned into a PNG wearing the wrong extension.
+  await test("an unknown output format is refused, not silently made PNG", async () => {
+    for (const fmt of ["AVIF", "TIFF", "GIF", "NONSENSE"]) {
+      let threw = false;
+      try { await P.canvasToBlob(solidCanvas(), fmt, 82, true); }
+      catch (e) {
+        threw = /^UNSUPPORTED_OUTPUT:/.test(e.message);
+        assert(threw, `${fmt} threw the wrong error: ${e.message}`);
+      }
+      assert(threw, `${fmt} returned a blob instead of refusing`);
     }
-    assert(blob.type === "image/avif", "returned " + blob.type + " for AVIF");
   });
 
   await test("no unencodable format is offered", () => {
-    for (const f of ["GIF", "TIFF"]) {
+    // No browser encodes any of these from a canvas.
+    for (const f of ["GIF", "TIFF", "AVIF"]) {
       assert(!FORMATS.includes(f), f + " is still in the output picker");
+    }
+    // AVIF decodes fine though, so it stays a valid input.
+    assert(ALL_FORMATS.includes("AVIF"), "AVIF should still be accepted as input");
+  });
+
+  await test("every offered format actually produces its own type", async () => {
+    const mime = { PNG:"image/png", JPG:"image/jpeg", WEBP:"image/webp", BMP:"image/bmp" };
+    for (const f of FORMATS) {
+      if (!mime[f]) continue;               // PDF and ICO are assembled elsewhere
+      const b = await P.canvasToBlob(solidCanvas(), f, 82, true);
+      assert(b.type === mime[f], `${f} produced ${b.type}`);
     }
   });
 
@@ -117,8 +131,9 @@ function brokenFile() {
   });
 
   await test("output name matches the chosen format", () => {
-    assert(P.getOutputName("holiday.png", "AVIF") === "holiday.avif", "avif");
-    assert(P.getOutputName("a.b.jpeg",    "WEBP") === "a.b.webp",     "dotted name");
+    assert(P.getOutputName("holiday.png", "WEBP") === "holiday.webp", "webp");
+    assert(P.getOutputName("a.b.jpeg",    "JPG")  === "a.b.jpg",      "dotted name");
+    assert(P.getOutputName("icon.png",    "ICO")  === "icon.ico",     "ico");
   });
 
   // ── Bug 2: a failure is reported, never dressed up as success ──────────

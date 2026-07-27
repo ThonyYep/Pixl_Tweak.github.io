@@ -11,7 +11,10 @@ const SAMPLE_FILES = [
 // Output formats we can actually encode. GIF and TIFF are absent on purpose:
 // canvas can't produce either, and the old code shipped WEBP/PNG bytes under
 // a .gif/.tif name. Adding them back means bundling a real encoder.
-const FORMATS     = ["PNG","JPG","WEBP","AVIF","BMP","PDF","ICO"];
+// AVIF is absent for the same reason GIF and TIFF are: no browser can encode
+// it from a canvas, so the option could only ever fail. It stays in
+// ALL_FORMATS below because decoding AVIF works fine.
+const FORMATS     = ["PNG","JPG","WEBP","BMP","PDF","ICO"];
 // Input formats a browser can decode. Camera RAW (CR2, NEF, DNG…), PSD and EPS
 // are not among them — listing them only produced failed conversions.
 const ALL_FORMATS = ["AVIF","BMP","GIF","ICO","JPG","JPEG","PNG","SVG","WEBP"];
@@ -20,9 +23,9 @@ const ALL_FORMATS = ["AVIF","BMP","GIF","ICO","JPG","JPEG","PNG","SVG","WEBP"];
 const DEFAULT_FORMAT = Processor.canEncode("image/webp") ? "WEBP" : "JPG";
 
 // Formats that support a quality/compression slider
-const FMT_HAS_QUALITY = new Set(["JPG","WEBP","AVIF","PDF"]);
+const FMT_HAS_QUALITY = new Set(["JPG","WEBP","PDF"]);
 // Formats that support transparency
-const FMT_HAS_ALPHA   = new Set(["PNG","WEBP","AVIF"]);
+const FMT_HAS_ALPHA   = new Set(["PNG","WEBP"]);
 // 256 is the ceiling: an ICO directory entry stores width/height in one byte,
 // with 0 meaning 256. 512 cannot be expressed, so offering it only produced a
 // size that got silently dropped.

@@ -12,7 +12,7 @@ Interface is bilingual (Español / English).
 
 ## Tools
 
-**Convert** — batch convert to PNG, JPG, WebP, AVIF, BMP, PDF or ICO. One file
+**Convert** — batch convert to PNG, JPG, WebP, BMP, PDF or ICO. One file
 downloads directly; several arrive as a ZIP. PDF can merge the whole batch into
 a single multi-page document. ICO exports a real multi-size icon (8–256 px, your
 pick) alongside a PNG of each size.
@@ -59,8 +59,7 @@ than hide them:
 | | |
 |---|---|
 | **Input** | AVIF, BMP, GIF, ICO, JPG, PNG, SVG, WebP — whatever your browser can decode. Camera RAW (CR2, NEF, DNG…), PSD and EPS are **not** supported by any browser. |
-| **Output** | PNG, JPG, WebP, AVIF, BMP, PDF, ICO. GIF and TIFF are absent because canvas cannot produce them; emitting WebP bytes under a `.gif` name would be a lie. |
-| **AVIF** | Listed, but **no browser can currently encode AVIF from a canvas**. Selecting it reports an error rather than silently handing you a PNG named `.avif`. Real AVIF output needs a WASM encoder. |
+| **Output** | PNG, JPG, WebP, BMP, PDF, ICO. GIF, TIFF and AVIF are absent because no browser can encode them from a canvas; emitting WebP bytes under a `.gif` name would be a lie. AVIF is still accepted as **input** — decoding it works everywhere, only encoding doesn't. Real AVIF output would need another 3.4 MB of WASM and seconds per megapixel. |
 | **WebP** | Not encodable in any version of Safari. The default output format is probed at load, so Safari starts on JPG instead of failing on the first click. |
 | **Metadata** | Always stripped. Canvas re-encodes pixels only, so EXIF, GPS and colour profiles are lost. Output is sRGB; wide-gamut (Display P3) sources are clipped. |
 | **Very large images** | Browsers silently blank a canvas past their size cap (~268 megapixels on desktop, less on iOS). This is detected and reported as a size problem, not a mystery failure. |

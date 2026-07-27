@@ -219,11 +219,11 @@ const SAMPLE_FILES = [
   { id: 4, name: "lake-pano-morning.gif", ext: "GIF", size: 229e5, w: 7680, h: 2160, palette: ["#a9d4e8", "#f8e4b5", "#3c628a"] },
   { id: 5, name: "product-mock-back.webp", ext: "WEBP", size: 48e4, w: 1600, h: 1600, palette: ["#bfa4ff", "#3a2f64", "#fcd3e2"] }
 ];
-const FORMATS = ["PNG", "JPG", "WEBP", "AVIF", "BMP", "PDF", "ICO"];
+const FORMATS = ["PNG", "JPG", "WEBP", "BMP", "PDF", "ICO"];
 const ALL_FORMATS = ["AVIF", "BMP", "GIF", "ICO", "JPG", "JPEG", "PNG", "SVG", "WEBP"];
 const DEFAULT_FORMAT = Processor.canEncode("image/webp") ? "WEBP" : "JPG";
-const FMT_HAS_QUALITY = /* @__PURE__ */ new Set(["JPG", "WEBP", "AVIF", "PDF"]);
-const FMT_HAS_ALPHA = /* @__PURE__ */ new Set(["PNG", "WEBP", "AVIF"]);
+const FMT_HAS_QUALITY = /* @__PURE__ */ new Set(["JPG", "WEBP", "PDF"]);
+const FMT_HAS_ALPHA = /* @__PURE__ */ new Set(["PNG", "WEBP"]);
 const ICO_SIZES = [8, 16, 24, 32, 48, 64, 128, 256];
 function ToggleRow({ label, on, onChange }) {
   return /* @__PURE__ */ React.createElement("div", { className: "toggle-row" }, /* @__PURE__ */ React.createElement("span", null, label), /* @__PURE__ */ React.createElement(
@@ -550,19 +550,30 @@ function brokenFile() {
     const b = await P.canvasToBlob(solidCanvas(), "WEBP", 82, true);
     assert(b.type === "image/webp", "got " + b.type);
   });
-  await test("AVIF encodes as image/avif or throws (never mislabels)", async () => {
-    let blob = null;
-    try {
-      blob = await P.canvasToBlob(solidCanvas(), "AVIF", 82, true);
-    } catch (e) {
-      assert(/^UNSUPPORTED_OUTPUT:AVIF/.test(e.message), "wrong error: " + e.message);
-      return;
+  await test("an unknown output format is refused, not silently made PNG", async () => {
+    for (const fmt of ["AVIF", "TIFF", "GIF", "NONSENSE"]) {
+      let threw = false;
+      try {
+        await P.canvasToBlob(solidCanvas(), fmt, 82, true);
+      } catch (e) {
+        threw = /^UNSUPPORTED_OUTPUT:/.test(e.message);
+        assert(threw, `${fmt} threw the wrong error: ${e.message}`);
+      }
+      assert(threw, `${fmt} returned a blob instead of refusing`);
     }
-    assert(blob.type === "image/avif", "returned " + blob.type + " for AVIF");
   });
   await test("no unencodable format is offered", () => {
-    for (const f of ["GIF", "TIFF"]) {
+    for (const f of ["GIF", "TIFF", "AVIF"]) {
       assert(!FORMATS.includes(f), f + " is still in the output picker");
+    }
+    assert(ALL_FORMATS.includes("AVIF"), "AVIF should still be accepted as input");
+  });
+  await test("every offered format actually produces its own type", async () => {
+    const mime = { PNG: "image/png", JPG: "image/jpeg", WEBP: "image/webp", BMP: "image/bmp" };
+    for (const f of FORMATS) {
+      if (!mime[f]) continue;
+      const b = await P.canvasToBlob(solidCanvas(), f, 82, true);
+      assert(b.type === mime[f], `${f} produced ${b.type}`);
     }
   });
   await test("no undecodable format is advertised as input", () => {
@@ -614,8 +625,9 @@ function brokenFile() {
     assert(blob.size === 54 + 10 * 5 * 4, "size " + blob.size);
   });
   await test("output name matches the chosen format", () => {
-    assert(P.getOutputName("holiday.png", "AVIF") === "holiday.avif", "avif");
-    assert(P.getOutputName("a.b.jpeg", "WEBP") === "a.b.webp", "dotted name");
+    assert(P.getOutputName("holiday.png", "WEBP") === "holiday.webp", "webp");
+    assert(P.getOutputName("a.b.jpeg", "JPG") === "a.b.jpg", "dotted name");
+    assert(P.getOutputName("icon.png", "ICO") === "icon.ico", "ico");
   });
   await test("undecodable source rejects", async () => {
     let threw = false;

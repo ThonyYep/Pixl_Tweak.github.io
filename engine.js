@@ -255,9 +255,11 @@ const ENGINE = (() => {
       // Firefox — the fastest, worst-compressing mode. The top of a lossy
       // slider should not change modes, so stop just short of the cliff.
       WEBP: ["image/webp", Math.min(q, 0.99)],
-      AVIF: ["image/avif", q],
     };
-    const [mime, qVal] = mimeMap[format] || ["image/png", 1.0];
+    // Falling back to PNG for an unknown format is how ".avif" files ended up
+    // holding PNG bytes in the first place. Refuse instead.
+    if (!mimeMap[format]) throw new Error("UNSUPPORTED_OUTPUT:" + format);
+    const [mime, qVal] = mimeMap[format];
     const tooLarge = () => new Error("CANVAS_TOO_LARGE:" + src.width + "×" + src.height);
     let blob;
     try {
@@ -324,7 +326,7 @@ const ENGINE = (() => {
     return out;
   }
 
-  const EXT = { JPG:"jpg", PNG:"png", WEBP:"webp", AVIF:"avif", BMP:"bmp", PDF:"pdf", ICO:"ico" };
+  const EXT = { JPG:"jpg", PNG:"png", WEBP:"webp", BMP:"bmp", PDF:"pdf", ICO:"ico" };
   const outputName = (name, format) =>
     name.replace(/\.[^/.]+$/, "") + "." + (EXT[format] || format.toLowerCase());
   const baseName = name => name.replace(/\.[^/.]+$/, "");
