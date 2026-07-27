@@ -478,6 +478,47 @@ await test("the aspect lock never produces a zero dimension", () => {
   assert(lockedPartner(500, null, "width") === null, "no ratio should mean no change");
 });
 
+// ── Crop box geometry ──────────────────────────────────────────────────
+// Drives the real ratioLockedRect from other-tools.jsx — a copy of the maths
+// here would stop testing the code the moment the two drifted. The invariant
+// is that a ratio-locked rectangle never leaves the image: the preview
+// promises a region, processCrop clamps, so anything outside is a region the
+// user selected and did not get.
+await test("a ratio-locked crop never leaves the image", () => {
+  const ib = { x: 2, y: 0, w: 96, h: 100 };
+  const HANDLES = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"];
+  const bad = [];
+  for (const targetR of [1, 4/3, 16/9, 3/4, 9/16]) {
+    // start rectangles including ones jammed against each edge, and two that
+    // already sit outside — a bad state has to heal, not propagate.
+    const starts = [
+      { x: 2,  y: 0,  w: 30, h: 40 },
+      { x: 68, y: 55, w: 30, h: 40 },
+      { x: 40, y: 30, w: 20, h: 20 },
+      { x: -8, y: 10, w: 30, h: 40 },
+      { x: 80, y: 80, w: 40, h: 40 },
+    ];
+    for (const sc of starts) for (const type of HANDLES) {
+      const r = ratioLockedRect(type, sc, ib, targetR);
+      const slack = Math.min(r.x - ib.x, ib.x + ib.w - (r.x + r.w),
+                             r.y - ib.y, ib.y + ib.h - (r.y + r.h));
+      if (slack < -0.01) bad.push({ targetR: +targetR.toFixed(3), type, sc, got: r, slack: +slack.toFixed(2) });
+    }
+  }
+  assert(bad.length === 0, `${bad.length} escaped, first: ${JSON.stringify(bad[0])}`);
+});
+
+await test("a ratio-locked crop keeps its ratio", () => {
+  const ib = { x: 2, y: 0, w: 96, h: 100 };
+  for (const targetR of [1, 4/3, 16/9, 3/4, 9/16]) {
+    for (const type of ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"]) {
+      const r = ratioLockedRect(type, { x: 30, y: 25, w: 25, h: 30 }, ib, targetR);
+      assert(Math.abs(r.w / r.h - targetR) < 0.001,
+        `${type} at ${targetR.toFixed(3)} produced ${(r.w / r.h).toFixed(3)}`);
+    }
+  }
+});
+
 // ── Job isolation ──────────────────────────────────────────────────────
 // Jobs can overlap: a long Convert keeps running when the user switches tool.
 // Both of these were broken — cancel tracked one job in a single slot, and the

@@ -543,6 +543,39 @@ function lockedPartner(value, ratio, editing) {
   if (!ratio) return null;
   return Math.max(1, Math.round(editing === "width" ? value / ratio : value * ratio));
 }
+function ratioLockedRect(type, sc, ib, targetR) {
+  const cx0 = (v) => Math.min(Math.max(v, ib.x), ib.x + ib.w);
+  const cy0 = (v) => Math.min(Math.max(v, ib.y), ib.y + ib.h);
+  const rA = cx0(sc.x + sc.w), bA = cy0(sc.y + sc.h);
+  const lA = cx0(sc.x), tA = cy0(sc.y);
+  const cxA = cx0(sc.x + sc.w / 2), cyA = cy0(sc.y + sc.h / 2);
+  let { w, h } = sc, x, y;
+  if (type === "tc" || type === "bc") {
+    const maxH = type === "tc" ? bA - ib.y : ib.y + ib.h - tA;
+    const maxWc = 2 * Math.min(cxA - ib.x, ib.x + ib.w - cxA);
+    h = Math.max(5, Math.min(h, maxH, maxWc / targetR));
+    w = h * targetR;
+    x = cxA - w / 2;
+    y = type === "tc" ? bA - h : tA;
+  } else if (type === "ml" || type === "mr") {
+    const maxW = type === "ml" ? rA - ib.x : ib.x + ib.w - lA;
+    const maxHc = 2 * Math.min(cyA - ib.y, ib.y + ib.h - cyA);
+    w = Math.max(5, Math.min(w, maxW, maxHc * targetR));
+    h = w / targetR;
+    x = type === "ml" ? rA - w : lA;
+    y = cyA - h / 2;
+  } else {
+    const maxW = type === "tl" || type === "bl" ? rA - ib.x : ib.x + ib.w - lA;
+    const maxH = type === "tl" || type === "tr" ? bA - ib.y : ib.y + ib.h - tA;
+    w = Math.max(5, Math.min(w, maxW, maxH * targetR));
+    h = w / targetR;
+    x = type === "tl" || type === "bl" ? rA - w : lA;
+    y = type === "tl" || type === "tr" ? bA - h : tA;
+  }
+  x = Math.min(Math.max(x, ib.x), ib.x + ib.w - w);
+  y = Math.min(Math.max(y, ib.y), ib.y + ib.h - h);
+  return { x, y, w, h };
+}
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return /* @__PURE__ */ React.createElement("div", { onClick, title: file.name, style: {
@@ -1015,34 +1048,7 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
         h = Math.max(5, h + dy);
       }
       if (targetR) {
-        const rAnchor = sc.x + sc.w;
-        const bAnchor = sc.y + sc.h;
-        const lAnchor = sc.x;
-        const tAnchor = sc.y;
-        const cxAnchor = sc.x + sc.w / 2;
-        const cyAnchor = sc.y + sc.h / 2;
-        if (type === "tc" || type === "bc") {
-          const maxH = type === "tc" ? bAnchor - ib.y : ib.y + ib.h - tAnchor;
-          const maxW = ib.w;
-          h = Math.max(5, Math.min(h, maxH, maxW / targetR));
-          w = h * targetR;
-          x = cxAnchor - w / 2;
-          y = type === "tc" ? bAnchor - h : tAnchor;
-        } else if (type === "ml" || type === "mr") {
-          const maxW = type === "ml" ? rAnchor - ib.x : ib.x + ib.w - lAnchor;
-          const maxHc = 2 * Math.min(cyAnchor - ib.y, ib.y + ib.h - cyAnchor);
-          w = Math.max(5, Math.min(w, maxW, maxHc * targetR));
-          h = w / targetR;
-          x = type === "ml" ? rAnchor - w : lAnchor;
-          y = cyAnchor - h / 2;
-        } else {
-          const maxW = type === "tl" || type === "bl" ? rAnchor - ib.x : ib.x + ib.w - lAnchor;
-          const maxH = type === "tl" || type === "tr" ? bAnchor - ib.y : ib.y + ib.h - tAnchor;
-          w = Math.max(5, Math.min(w, maxW, maxH * targetR));
-          h = w / targetR;
-          x = type === "tl" || type === "bl" ? rAnchor - w : lAnchor;
-          y = type === "tl" || type === "tr" ? bAnchor - h : tAnchor;
-        }
+        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR));
       } else {
         if (x < ib.x) {
           w -= ib.x - x;
@@ -1214,6 +1220,7 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   ))));
 }
 window.lockedPartner = lockedPartner;
+window.ratioLockedRect = ratioLockedRect;
 window.ResizeTab = ResizeTab;
 window.CompressTab = CompressTab;
 window.CropTab = CropTab;
@@ -1685,6 +1692,43 @@ function brokenFile() {
     assert(lockedPartner(1, 1600 / 100, "height") >= 1, "width rounded to zero");
     assert(lockedPartner(1, 100 / 1600, "width") >= 1, "height rounded to zero");
     assert(lockedPartner(500, null, "width") === null, "no ratio should mean no change");
+  });
+  await test("a ratio-locked crop never leaves the image", () => {
+    const ib = { x: 2, y: 0, w: 96, h: 100 };
+    const HANDLES = ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"];
+    const bad = [];
+    for (const targetR of [1, 4 / 3, 16 / 9, 3 / 4, 9 / 16]) {
+      const starts = [
+        { x: 2, y: 0, w: 30, h: 40 },
+        { x: 68, y: 55, w: 30, h: 40 },
+        { x: 40, y: 30, w: 20, h: 20 },
+        { x: -8, y: 10, w: 30, h: 40 },
+        { x: 80, y: 80, w: 40, h: 40 }
+      ];
+      for (const sc of starts) for (const type of HANDLES) {
+        const r = ratioLockedRect(type, sc, ib, targetR);
+        const slack = Math.min(
+          r.x - ib.x,
+          ib.x + ib.w - (r.x + r.w),
+          r.y - ib.y,
+          ib.y + ib.h - (r.y + r.h)
+        );
+        if (slack < -0.01) bad.push({ targetR: +targetR.toFixed(3), type, sc, got: r, slack: +slack.toFixed(2) });
+      }
+    }
+    assert(bad.length === 0, `${bad.length} escaped, first: ${JSON.stringify(bad[0])}`);
+  });
+  await test("a ratio-locked crop keeps its ratio", () => {
+    const ib = { x: 2, y: 0, w: 96, h: 100 };
+    for (const targetR of [1, 4 / 3, 16 / 9, 3 / 4, 9 / 16]) {
+      for (const type of ["tl", "tc", "tr", "ml", "mr", "bl", "bc", "br"]) {
+        const r = ratioLockedRect(type, { x: 30, y: 25, w: 25, h: 30 }, ib, targetR);
+        assert(
+          Math.abs(r.w / r.h - targetR) < 1e-3,
+          `${type} at ${targetR.toFixed(3)} produced ${(r.w / r.h).toFixed(3)}`
+        );
+      }
+    }
   });
   async function jobFiles(n, size = 900) {
     const out2 = [];

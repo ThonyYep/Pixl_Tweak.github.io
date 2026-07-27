@@ -50,6 +50,57 @@ function lockedPartner(value, ratio, editing) {
   return Math.max(1, Math.round(editing === "width" ? value / ratio : value * ratio));
 }
 
+// Where a ratio-locked crop rectangle lands when one handle is dragged.
+//
+// sc is the rectangle as it was when the drag started, ib the image bounds,
+// both in container percentages; targetR is the wanted width/height in that
+// same space. Every position is derived from an anchor — the edge the handle
+// does not move — so the anchors are clamped into the image first: an anchor
+// even slightly outside was otherwise copied forward, and one bad rectangle
+// stayed bad for the rest of the session.
+//
+// Lives out here so the test drives this function rather than a copy of it.
+function ratioLockedRect(type, sc, ib, targetR) {
+  const cx0 = v => Math.min(Math.max(v, ib.x), ib.x + ib.w);
+  const cy0 = v => Math.min(Math.max(v, ib.y), ib.y + ib.h);
+  const rA  = cx0(sc.x + sc.w),     bA  = cy0(sc.y + sc.h);
+  const lA  = cx0(sc.x),            tA  = cy0(sc.y);
+  const cxA = cx0(sc.x + sc.w / 2), cyA = cy0(sc.y + sc.h / 2);
+  let { w, h } = sc, x, y;
+
+  if (type === "tc" || type === "bc") {
+    // Height leads, width follows the ratio, centred horizontally. The width
+    // limit is the room around cxA, not the whole image: capping at ib.w let a
+    // box near an edge grow straight out of the picture.
+    const maxH  = type === "tc" ? bA - ib.y : ib.y + ib.h - tA;
+    const maxWc = 2 * Math.min(cxA - ib.x, ib.x + ib.w - cxA);
+    h = Math.max(5, Math.min(h, maxH, maxWc / targetR));
+    w = h * targetR;
+    x = cxA - w / 2;
+    y = type === "tc" ? bA - h : tA;
+  } else if (type === "ml" || type === "mr") {
+    const maxW  = type === "ml" ? rA - ib.x : ib.x + ib.w - lA;
+    const maxHc = 2 * Math.min(cyA - ib.y, ib.y + ib.h - cyA);
+    w = Math.max(5, Math.min(w, maxW, maxHc * targetR));
+    h = w / targetR;
+    x = type === "ml" ? rA - w : lA;
+    y = cyA - h / 2;
+  } else {
+    const maxW = (type === "tl" || type === "bl") ? rA - ib.x : ib.x + ib.w - lA;
+    const maxH = (type === "tl" || type === "tr") ? bA - ib.y : ib.y + ib.h - tA;
+    w = Math.max(5, Math.min(w, maxW, maxH * targetR));
+    h = w / targetR;
+    x = (type === "tl" || type === "bl") ? rA - w : lA;
+    y = (type === "tl" || type === "tr") ? bA - h : tA;
+  }
+
+  // The 5-unit floor above can beat the room available, so nudge the finished
+  // rectangle back inside. Moving it keeps the ratio; shrinking it would not.
+  x = Math.min(Math.max(x, ib.x), ib.x + ib.w - w);
+  y = Math.min(Math.max(y, ib.y), ib.y + ib.h - h);
+  return { x, y, w, h };
+}
+
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return (
@@ -678,40 +729,7 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
       if (type==="bl"||type==="bc"||type==="br") { h=Math.max(5,h+dy); }
 
       if (targetR) {
-        // ── Aspect-ratio enforcement with hard image-bounds limit ─────────────
-        // Anchors: the edge that does NOT move for each handle type
-        const rAnchor = sc.x + sc.w; // right  anchor (stays fixed for tl/ml/bl)
-        const bAnchor = sc.y + sc.h; // bottom anchor (stays fixed for tl/tc/tr)
-        const lAnchor = sc.x;        // left   anchor (stays fixed for tr/mr/br)
-        const tAnchor = sc.y;        // top    anchor (stays fixed for bl/bc/br)
-        const cxAnchor = sc.x + sc.w / 2; // horizontal center (tc/bc)
-        const cyAnchor = sc.y + sc.h / 2; // vertical   center (ml/mr)
-
-        if (type === "tc" || type === "bc") {
-          // Height primary — width derives from ratio, centered horizontally
-          const maxH = type === "tc" ? bAnchor - ib.y : ib.y + ib.h - tAnchor;
-          const maxW = ib.w;
-          h = Math.max(5, Math.min(h, maxH, maxW / targetR));
-          w = h * targetR;
-          x = cxAnchor - w / 2;
-          y = type === "tc" ? bAnchor - h : tAnchor;
-        } else if (type === "ml" || type === "mr") {
-          // Width primary — height derives from ratio, centered vertically
-          const maxW = type === "ml" ? rAnchor - ib.x : ib.x + ib.w - lAnchor;
-          const maxHc = 2 * Math.min(cyAnchor - ib.y, ib.y + ib.h - cyAnchor);
-          w = Math.max(5, Math.min(w, maxW, maxHc * targetR));
-          h = w / targetR;
-          x = type === "ml" ? rAnchor - w : lAnchor;
-          y = cyAnchor - h / 2;
-        } else {
-          // Corner handles — width primary, each corner pins its opposite
-          const maxW = (type==="tl"||type==="bl") ? rAnchor - ib.x : ib.x + ib.w - lAnchor;
-          const maxH = (type==="tl"||type==="tr") ? bAnchor - ib.y : ib.y + ib.h - tAnchor;
-          w = Math.max(5, Math.min(w, maxW, maxH * targetR));
-          h = w / targetR;
-          x = (type==="tl"||type==="bl") ? rAnchor - w : lAnchor;
-          y = (type==="tl"||type==="tr") ? bAnchor - h : tAnchor;
-        }
+        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR));
       } else {
         // ── Free mode — clamp to image bounds ────────────────────────────────
         if (x < ib.x)             { w -= ib.x - x;       x = ib.x; }
@@ -957,6 +975,7 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 }
 
 window.lockedPartner = lockedPartner;
+window.ratioLockedRect = ratioLockedRect;
 window.ResizeTab   = ResizeTab;
 window.CompressTab = CompressTab;
 window.CropTab     = CropTab;
