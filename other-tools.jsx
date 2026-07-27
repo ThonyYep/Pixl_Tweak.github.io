@@ -41,6 +41,15 @@ function CompareSlider({ before, after, label, beforeLabel, afterLabel }) {
   );
 }
 
+// The partner dimension when the aspect lock is on. Takes the ratio as an
+// argument rather than reading the current fields, which is the whole point:
+// deriving it from the fields meant each keystroke recomputed it from the
+// previous one, so typing "800" into a 1600x900 walked 8x5 -> 80x50 -> 800x500.
+function lockedPartner(value, ratio, editing) {
+  if (!ratio) return null;
+  return Math.max(1, Math.round(editing === "width" ? value / ratio : value * ratio));
+}
+
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return (
@@ -179,6 +188,10 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     if (iw > 0) { setW(iw); setH(ih); }
   }, [selectedFile?.id, selectedFile?.w]);
 
+  // The source image's aspect ratio — fixed, so the lock stays honest however
+  // the fields are edited.
+  const ratio = origDims.h > 0 ? origDims.w / origDims.h : null;
+
   function handleApply() {
     setProcessing(true);
     setErrors([]);
@@ -228,9 +241,9 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           <div className="dim-row">
             <div className="num-input">
               <small>{t.resize.width}</small>
-              <input type="text" value={w} onChange={e => {
-                const v = +e.target.value || 0; setW(v);
-                if (lock && h > 0) setH(Math.round(v * h / Math.max(1, w)));
+              <input type="text" inputMode="numeric" value={w} onChange={e => {
+                const v = +e.target.value.replace(/\D/g, "") || 0; setW(v);
+                if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
               }} />
             </div>
             <button className={"link " + (lock?"on":"")} onClick={() => setLock(!lock)} title={t.resize.lock}>
@@ -238,9 +251,9 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             </button>
             <div className="num-input">
               <small>{t.resize.height}</small>
-              <input type="text" value={h} onChange={e => {
-                const v = +e.target.value || 0; setH(v);
-                if (lock && w > 0) setW(Math.round(v * w / Math.max(1, h)));
+              <input type="text" inputMode="numeric" value={h} onChange={e => {
+                const v = +e.target.value.replace(/\D/g, "") || 0; setH(v);
+                if (lock && ratio) setW(lockedPartner(v, ratio, "height"));
               }} />
             </div>
           </div>
@@ -943,6 +956,7 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   );
 }
 
+window.lockedPartner = lockedPartner;
 window.ResizeTab   = ResizeTab;
 window.CompressTab = CompressTab;
 window.CropTab     = CropTab;

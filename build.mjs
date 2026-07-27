@@ -43,7 +43,7 @@ const BUNDLES = [
   // The test page needs the engine and the convert module, plus the cases
   // themselves in the same scope so they can read ICO_SIZES and friends.
   { out: "selftest.bundle.js", minify: false,
-    src: ["processor.jsx", "convert.jsx", "selftest-cases.js"] },
+    src: ["processor.jsx", "convert.jsx", "other-tools.jsx", "selftest-cases.js"] },
 ];
 
 for (const { out, src, minify } of BUNDLES) {

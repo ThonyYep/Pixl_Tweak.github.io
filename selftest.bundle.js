@@ -518,6 +518,705 @@ window.SAMPLE_FILES = SAMPLE_FILES;
 window.ALL_FORMATS = ALL_FORMATS;
 window.formatBytes = formatBytes;
 window.Thumb = Thumb;
+function ErrorNote({ t, errors }) {
+  if (!errors || errors.length === 0) return null;
+  const reason = errorMessage(t, errors[0]);
+  return /* @__PURE__ */ React.createElement("div", { className: "error-note" }, /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 14 }), /* @__PURE__ */ React.createElement("span", null, reason, errors.length > 1 ? ` (${errors.length})` : ""));
+}
+function CompareSlider({ before, after, label, beforeLabel, afterLabel }) {
+  const [pos, setPos] = React.useState(50);
+  return /* @__PURE__ */ React.createElement("div", { className: "wipe" }, /* @__PURE__ */ React.createElement("img", { src: before, alt: "", className: "wipe-img" }), /* @__PURE__ */ React.createElement("div", { className: "wipe-clip", style: { clipPath: `inset(0 0 0 ${pos}%)` } }, /* @__PURE__ */ React.createElement("img", { src: after, alt: "", className: "wipe-img" })), /* @__PURE__ */ React.createElement("span", { className: "wipe-tag left" }, beforeLabel), /* @__PURE__ */ React.createElement("span", { className: "wipe-tag right" }, afterLabel), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "range",
+      min: "0",
+      max: "100",
+      step: "0.1",
+      value: pos,
+      className: "wipe-range",
+      "aria-label": label,
+      onChange: (e) => setPos(+e.target.value)
+    }
+  ), /* @__PURE__ */ React.createElement("div", { className: "wipe-line", style: { left: pos + "%" }, "aria-hidden": true }, /* @__PURE__ */ React.createElement("span", { className: "wipe-grip" })));
+}
+function lockedPartner(value, ratio, editing) {
+  if (!ratio) return null;
+  return Math.max(1, Math.round(editing === "width" ? value / ratio : value * ratio));
+}
+function FilePill({ file, selected, onClick }) {
+  const url = useFileUrl(file);
+  return /* @__PURE__ */ React.createElement("div", { onClick, title: file.name, style: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    cursor: "pointer",
+    borderRadius: 8,
+    overflow: "hidden",
+    border: selected ? "2.5px solid var(--coral)" : "2px solid var(--line)",
+    boxShadow: selected ? "0 0 0 3px rgba(106,163,255,.22)" : "none",
+    background: "var(--surface-2)",
+    transition: "border .15s,box-shadow .15s"
+  } }, url ? /* @__PURE__ */ React.createElement("img", { src: url, alt: file.name, style: { width: "100%", height: "100%", objectFit: "cover", display: "block" } }) : /* @__PURE__ */ React.createElement(Thumb, { palette: file.palette }));
+}
+function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
+  return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, paddingBottom: 10, overflowX: "auto", alignItems: "center" } }, files.map((f, i) => /* @__PURE__ */ React.createElement(FilePill, { key: f.id, file: f, selected: i === selectedIdx, onClick: () => onSelect(i) })), /* @__PURE__ */ React.createElement("button", { onClick: onAdd, title: "Add images", style: {
+    width: 44,
+    height: 44,
+    flexShrink: 0,
+    border: "1.5px dashed var(--line)",
+    borderRadius: 8,
+    background: "transparent",
+    cursor: "pointer",
+    color: "var(--ink-3)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center"
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "plus", size: 16 })));
+}
+function ClearAllButton({ onClear, label }) {
+  const [hover, setHover] = React.useState(false);
+  return /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      onClick: onClear,
+      onMouseEnter: () => setHover(true),
+      onMouseLeave: () => setHover(false),
+      style: {
+        height: 28,
+        border: 0,
+        borderRadius: 8,
+        cursor: "pointer",
+        display: "flex",
+        alignItems: "center",
+        gap: 5,
+        padding: hover ? "0 10px 0 8px" : "0 4px",
+        background: hover ? "var(--coral-soft)" : "transparent",
+        color: hover ? "var(--coral-ink)" : "var(--ink-3)",
+        transition: "background .2s, color .2s, padding .2s",
+        overflow: "hidden"
+      }
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "cancel-square", size: 16 }),
+    /* @__PURE__ */ React.createElement("span", { style: {
+      maxWidth: hover ? 160 : 0,
+      opacity: hover ? 1 : 0,
+      transition: "max-width .22s ease, opacity .18s ease",
+      overflow: "hidden",
+      fontSize: 12,
+      fontWeight: 600,
+      whiteSpace: "nowrap"
+    } }, label)
+  );
+}
+function MiniDropZone({ onAdd, onDrop }) {
+  const [hot, setHot] = React.useState(false);
+  return /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      onClick: onAdd,
+      onDragOver: (e) => {
+        e.preventDefault();
+        setHot(true);
+      },
+      onDragEnter: (e) => {
+        e.preventDefault();
+        setHot(true);
+      },
+      onDragLeave: () => setHot(false),
+      onDrop: (e) => {
+        e.preventDefault();
+        setHot(false);
+        if (onDrop) onDrop(e.dataTransfer.files);
+      },
+      style: {
+        minHeight: 220,
+        cursor: "pointer",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        border: `2px dashed ${hot ? "var(--coral)" : "var(--line)"}`,
+        borderRadius: "var(--radius-lg)",
+        background: hot ? "rgba(106,163,255,.06)" : "var(--surface-2)",
+        transition: "all .2s"
+      }
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "upload", size: 28 }),
+    /* @__PURE__ */ React.createElement("span", { style: { fontWeight: 600, color: "var(--ink-2)", fontSize: 14 } }, "Drop images or click to browse"),
+    /* @__PURE__ */ React.createElement("span", { style: { fontSize: 12, color: "var(--ink-3)" } }, "JPG \xB7 PNG \xB7 WEBP \xB7 and more")
+  );
+}
+function FitButton({ label, tooltip, active, onClick }) {
+  const [hover, setHover] = React.useState(false);
+  return /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "preset " + (active ? "on" : ""),
+      onClick,
+      onMouseEnter: () => setHover(true),
+      onMouseLeave: () => setHover(false),
+      style: { flexDirection: "column", gap: 0, alignItems: "center", justifyContent: "center", overflow: "hidden", width: "100%" }
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, label),
+    /* @__PURE__ */ React.createElement("span", { style: {
+      fontSize: 10.5,
+      fontWeight: 400,
+      textAlign: "center",
+      lineHeight: 1.35,
+      maxHeight: hover ? 40 : 0,
+      opacity: hover ? 1 : 0,
+      marginTop: hover ? 3 : 0,
+      overflow: "hidden",
+      transition: "max-height .22s ease, opacity .18s ease, margin-top .22s ease",
+      color: active ? "var(--coral-ink)" : "var(--ink-3)"
+    } }, tooltip)
+  );
+}
+function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
+  const [selectedIdx, setSelectedIdx] = React.useState(0);
+  const [w, setW] = React.useState(1280);
+  const [h, setH] = React.useState(720);
+  const [lock, setLock] = React.useState(true);
+  const [fit, setFit] = React.useState(0);
+  const [upscale, setUpscale] = React.useState(false);
+  const [format, setFormat] = React.useState(DEFAULT_FORMAT);
+  const [transparent, setTransparent] = React.useState(true);
+  const [processing, setProcessing] = React.useState(false);
+  const [errors, setErrors] = React.useState([]);
+  const [origDims, setOrigDims] = React.useState({ w: 0, h: 0 });
+  const idx = Math.min(selectedIdx, Math.max(0, files.length - 1));
+  const selectedFile = files[idx] || null;
+  const fileUrl = useFileUrl(selectedFile);
+  React.useEffect(() => {
+    const iw = selectedFile?.w || 0, ih = selectedFile?.h || 0;
+    setOrigDims({ w: iw, h: ih });
+    if (iw > 0) {
+      setW(iw);
+      setH(ih);
+    }
+  }, [selectedFile?.id, selectedFile?.w]);
+  const ratio = origDims.h > 0 ? origDims.w / origDims.h : null;
+  function handleApply() {
+    setProcessing(true);
+    setErrors([]);
+    Processor.processResize(
+      files,
+      { w, h, fit, upscale, format, transparent },
+      () => {
+      },
+      (ok, errs) => {
+        setErrors(errs || []);
+        setProcessing(false);
+      }
+    );
+  }
+  const fitTooltips = t.resize.fitTooltips || ["", "", ""];
+  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(FileStrip, { files, selectedIdx: idx, onSelect: setSelectedIdx, onAdd: onAddFiles }), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll })), /* @__PURE__ */ React.createElement("div", { style: {
+    position: "relative",
+    overflow: "hidden",
+    background: "var(--surface-1,white)",
+    borderRadius: "var(--radius-lg,12px)",
+    border: "1.5px solid var(--line)",
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    minHeight: 220
+  } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 260, objectFit: "contain", display: "block", padding: 10, boxSizing: "border-box" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 300 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, w > 0 ? `${w}\xD7${h} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.resize.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.width, " & ", t.resize.height), /* @__PURE__ */ React.createElement("div", { className: "dim-row" }, /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.width), /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "numeric", value: w, onChange: (e) => {
+    const v = +e.target.value.replace(/\D/g, "") || 0;
+    setW(v);
+    if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
+  } })), /* @__PURE__ */ React.createElement("button", { className: "link " + (lock ? "on" : ""), onClick: () => setLock(!lock), title: t.resize.lock }, /* @__PURE__ */ React.createElement(Icon, { name: lock ? "lock" : "unlock", size: 16 })), /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.height), /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "numeric", value: h, onChange: (e) => {
+    const v = +e.target.value.replace(/\D/g, "") || 0;
+    setH(v);
+    if (lock && ratio) setW(lockedPartner(v, ratio, "height"));
+  } })))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.fit), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 } }, t.resize.fits.map((name, i) => /* @__PURE__ */ React.createElement(FitButton, { key: i, label: name, tooltip: fitTooltips[i], active: fit === i, onClick: () => setFit(i) })))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.outputFormat), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ["JPG", "PNG", "WEBP"].map((fmt) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: fmt,
+      className: "preset " + (format === fmt ? "on" : ""),
+      onClick: () => setFormat(fmt)
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, fmt)
+  )))), (format === "PNG" || format === "WEBP") && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement(ToggleRow, { label: t.resize.transparent, on: transparent, onChange: setTransparent })), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement(ToggleRow, { label: t.resize.upscale, on: upscale, onChange: setUpscale })), files.length > 1 && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", padding: "4px 0 2px" } }, t.resize.appliesToAll.replace("{n}", files.length)), /* @__PURE__ */ React.createElement(ErrorNote, { t, errors }), /* @__PURE__ */ React.createElement("div", { className: "actions" }, processing ? /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "btn ghost",
+      style: { justifyContent: "center" },
+      onClick: () => Processor.cancelJob()
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 16 }),
+    " ",
+    t.convert.cancel
+  ) : /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "btn primary",
+      disabled: files.length === 0,
+      style: { justifyContent: "center" },
+      onClick: handleApply
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "sparkle", size: 16 }),
+    " ",
+    t.resize.apply
+  ))));
+}
+function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
+  const [selectedIdx, setSelectedIdx] = React.useState(0);
+  const [target, setTarget] = React.useState(0);
+  const [quality, setQuality] = React.useState(72);
+  const [format, setFormat] = React.useState("JPG");
+  const [reduceColors, setReduceColors] = React.useState(false);
+  const [maxColors, setMaxColors] = React.useState(null);
+  const [processing, setProcessing] = React.useState(false);
+  const [errors, setErrors] = React.useState([]);
+  const [maxCompress, setMaxCompress] = React.useState(false);
+  const [mode, setMode] = React.useState("quality");
+  const [targetNum, setTargetNum] = React.useState(500);
+  const [targetUnit, setTargetUnit] = React.useState("KB");
+  const [result, setResult] = React.useState(null);
+  const idx = Math.min(selectedIdx, Math.max(0, files.length - 1));
+  const selectedFile = files[idx] || null;
+  const fileUrl = useFileUrl(selectedFile);
+  const sizeModeAvailable = format !== "PNG";
+  const inSizeMode = mode === "size" && sizeModeAvailable;
+  const targetBytes = inSizeMode ? Math.max(1, targetNum) * (targetUnit === "MB" ? 1e6 : 1e3) : 0;
+  const totalBefore = selectedFile ? selectedFile.size : 0;
+  const totalAfter = result ? result.bytes : null;
+  const savings = totalBefore > 0 && totalAfter != null ? Math.round((1 - totalAfter / totalBefore) * 100) : null;
+  React.useEffect(
+    () => {
+      setResult(null);
+    },
+    [selectedFile?.id, format, quality, reduceColors, maxColors, mode, targetNum, targetUnit, maxCompress]
+  );
+  React.useEffect(() => () => {
+    if (result) URL.revokeObjectURL(result.url);
+  }, [result]);
+  function handleStart() {
+    if (!selectedFile) return;
+    setProcessing(true);
+    setErrors([]);
+    setResult(null);
+    Processor.processCompress(
+      [selectedFile],
+      { format, quality, reduceColors, maxColors, targetBytes, maxCompress },
+      () => {
+      },
+      (ok, errs, sizes) => {
+        setErrors(errs || []);
+        const s = sizes && sizes[0];
+        setResult(s ? {
+          url: URL.createObjectURL(s.blob),
+          bytes: s.bytes,
+          quality: s.quality,
+          met: s.met
+        } : null);
+        setProcessing(false);
+      }
+    );
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(FileStrip, { files, selectedIdx: idx, onSelect: setSelectedIdx, onAdd: onAddFiles }), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", marginBottom: 4 } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll })), /* @__PURE__ */ React.createElement("div", { style: {
+    minHeight: 200,
+    marginBottom: 14,
+    position: "relative",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    background: "var(--surface-1,white)",
+    borderRadius: "var(--radius-lg,12px)",
+    border: "1.5px solid var(--line)",
+    padding: 10,
+    boxSizing: "border-box"
+  } }, fileUrl && result ? /* @__PURE__ */ React.createElement(
+    CompareSlider,
+    {
+      before: fileUrl,
+      after: result.url,
+      label: t.compress.compareHint,
+      beforeLabel: t.compress.before,
+      afterLabel: t.compress.after
+    }
+  ) : fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 220, objectFit: "contain", display: "block" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "70%", maxWidth: 320 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), result && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", marginTop: -8, marginBottom: 10 } }, result.met === false ? t.compress.targetMissed.replace("{target}", formatBytes(targetBytes)).replace("{size}", formatBytes(result.bytes)) : inSizeMode ? t.compress.targetMet.replace("{size}", formatBytes(result.bytes)).replace("{q}", result.quality) : t.compress.compareHint), /* @__PURE__ */ React.createElement("div", { className: "compare" }, /* @__PURE__ */ React.createElement("div", { className: "panel" }, /* @__PURE__ */ React.createElement("div", { className: "lab" }, t.compress.before), /* @__PURE__ */ React.createElement("div", { className: "num" }, formatBytes(totalBefore)), /* @__PURE__ */ React.createElement("div", { className: "meta" }, "1 ", t.compress.filesSingular, " \xB7 ", t.compress.originalQuality), /* @__PURE__ */ React.createElement("div", { className: "barwrap" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: "100%" } }))), /* @__PURE__ */ React.createElement("div", { className: "panel after" }, /* @__PURE__ */ React.createElement("div", { className: "lab" }, t.compress.after), /* @__PURE__ */ React.createElement("div", { className: "num" }, totalAfter != null ? formatBytes(totalAfter) : "\u2014"), /* @__PURE__ */ React.createElement("div", { className: "meta" }, "1 ", t.compress.filesSingular, " \xB7 ", format, " q", result ? result.quality : inSizeMode ? "?" : quality), /* @__PURE__ */ React.createElement("div", { className: "barwrap" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: {
+    width: totalAfter != null ? Math.max(4, totalAfter / totalBefore * 100) + "%" : "0%"
+  } })))))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.compress.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.target), /* @__PURE__ */ React.createElement("div", { className: "preset-grid" }, t.compress.targets.map((name, i) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: i,
+      className: "preset " + (target === i ? "on" : ""),
+      style: { flexDirection: "column", gap: 4, alignItems: "center", justifyContent: "center", padding: "8px 4px" },
+      onClick: () => {
+        setTarget(i);
+        setQuality([60, 50, 88, quality][i]);
+      }
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: ["globe", "mail", "printer", "star"][i], size: 16 }),
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, name)
+  )))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.outputFormat), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ["JPG", "PNG", "WEBP"].map((fmt) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: fmt,
+      className: "preset " + (format === fmt ? "on" : ""),
+      onClick: () => {
+        setFormat(fmt);
+        if (fmt !== "PNG") setReduceColors(false);
+      }
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, fmt)
+  )))), sizeModeAvailable && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.mode), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr" } }, [["quality", t.compress.modeQuality], ["size", t.compress.modeSize]].map(([id, name]) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: id,
+      className: "preset " + (mode === id ? "on" : ""),
+      onClick: () => setMode(id)
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, name)
+  )))), sizeModeAvailable && !inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.quality, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, quality, "%")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement("input", { type: "range", min: "10", max: "100", value: quality, onChange: (e) => setQuality(+e.target.value) }))), inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.targetSize), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { className: "num-input", style: { flex: 1 } }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      inputMode: "numeric",
+      value: targetNum,
+      onChange: (e) => setTargetNum(Math.max(1, +e.target.value.replace(/\D/g, "") || 0))
+    }
+  )), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr", flex: "0 0 110px" } }, ["KB", "MB"].map((u) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: u,
+      className: "preset " + (targetUnit === u ? "on" : ""),
+      onClick: () => setTargetUnit(u)
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, u)
+  )))), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 6, fontSize: 11.5, color: "var(--ink-3)" } }, t.compress.targetHint)), format === "PNG" && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement(ToggleRow, { label: t.compress.reduceColors, on: reduceColors, onChange: setReduceColors }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: "var(--ink-3)", marginTop: 4 } }, t.compress.reduceColorsHint), reduceColors && /* @__PURE__ */ React.createElement("div", { style: { marginTop: 12 } }, /* @__PURE__ */ React.createElement("label", { style: { display: "block", fontSize: 12, fontWeight: 600, color: "var(--ink-2)", letterSpacing: ".04em", textTransform: "uppercase", marginBottom: 8 } }, t.compress.maxColors), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "repeat(4,1fr)" } }, [128, 64, 32, 16].map((n) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: n,
+      className: "preset " + (maxColors === n ? "on" : ""),
+      onClick: () => setMaxColors(maxColors === n ? null : n)
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace", fontSize: 11 } }, n)
+  ))))), /* @__PURE__ */ React.createElement("div", { className: "summary" }, /* @__PURE__ */ React.createElement("div", { className: "summary-top" }, /* @__PURE__ */ React.createElement("span", { className: "lab" }, t.compress.savings), savings != null && /* @__PURE__ */ React.createElement("span", { className: "summary-pill" }, "\u2212", savings, "%")), /* @__PURE__ */ React.createElement("div", { className: "summary-num" }, savings != null ? savings : "\u2014", savings != null && /* @__PURE__ */ React.createElement("span", { className: "unit" }, "%")), /* @__PURE__ */ React.createElement("div", { className: "summary-bar" }, /* @__PURE__ */ React.createElement("div", { className: "summary-bar-fill", style: { width: Math.max(0, savings || 0) + "%" } })), /* @__PURE__ */ React.createElement("div", { className: "summary-foot" }, /* @__PURE__ */ React.createElement("span", null, formatBytes(totalBefore)), savings != null && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", { className: "arr" }, "\u2192"), /* @__PURE__ */ React.createElement("span", { className: "emph" }, formatBytes(totalAfter)), /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, formatBytes(totalBefore - totalAfter), " ", t.common.saved)))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement(ToggleRow, { label: t.convert.maxCompress, on: maxCompress, onChange: setMaxCompress }), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: "var(--ink-3)", paddingTop: 6, lineHeight: 1.45 } }, t.convert.maxCompressHint)), /* @__PURE__ */ React.createElement(ErrorNote, { t, errors }), /* @__PURE__ */ React.createElement("div", { className: "actions" }, processing ? /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "btn ghost",
+      style: { justifyContent: "center" },
+      onClick: () => Processor.cancelJob()
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 16 }),
+    " ",
+    t.convert.cancel
+  ) : /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "btn primary",
+      disabled: !selectedFile || reduceColors && maxColors === null,
+      style: { justifyContent: "center" },
+      onClick: handleStart
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "sparkle", size: 16 }),
+    " ",
+    t.compress.start
+  ))));
+}
+const ASPECT_NUMS = [null, 1, 4 / 3, 16 / 9, 3 / 4, 9 / 16];
+function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
+  const containerRef = React.useRef(null);
+  const imgBoundsRef = React.useRef({ x: 0, y: 0, w: 100, h: 100 });
+  const [crop, setCrop] = React.useState({ x: 0, y: 0, w: 100, h: 100 });
+  function updateCrop(c) {
+    setCrop(c);
+    if (!onCropChange) return;
+    const b = imgBoundsRef.current;
+    if (!b.w || !b.h) return;
+    onCropChange({
+      x: (c.x - b.x) / b.w * 100,
+      y: (c.y - b.y) / b.h * 100,
+      w: c.w / b.w * 100,
+      h: c.h / b.h * 100
+    });
+  }
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    requestAnimationFrame(() => {
+      const { width: cW, height: cH } = el.getBoundingClientRect();
+      if (!cW || !cH) return;
+      let bx = 0, by = 0, bw = 100, bh = 100;
+      if (imageDims?.w && imageDims?.h) {
+        const scale = Math.min(cW / imageDims.w, cH / imageDims.h);
+        const dw = imageDims.w * scale, dh = imageDims.h * scale;
+        bx = (cW - dw) / 2 / cW * 100;
+        by = (cH - dh) / 2 / cH * 100;
+        bw = dw / cW * 100;
+        bh = dh / cH * 100;
+      }
+      imgBoundsRef.current = { x: bx, y: by, w: bw, h: bh };
+      const asp = ASPECT_NUMS[ratio];
+      if (!asp) {
+        updateCrop({ x: bx, y: by, w: bw, h: bh });
+      } else {
+        const cAsp = cW / cH;
+        const targetR = asp / cAsp;
+        let cw, ch;
+        if (targetR >= bw / bh) {
+          cw = bw * 0.98;
+          ch = cw / targetR;
+        } else {
+          ch = bh * 0.98;
+          cw = ch * targetR;
+        }
+        updateCrop({ x: bx + (bw - cw) / 2, y: by + (bh - ch) / 2, w: cw, h: ch });
+      }
+    });
+  }, [imageDims?.w, imageDims?.h, ratio]);
+  const getPoint = (ev) => {
+    const src = ev.touches ? ev.touches[0] : ev;
+    return { x: src.clientX, y: src.clientY };
+  };
+  const startDrag = (e, type) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = containerRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const cAsp = rect.width / rect.height;
+    const asp = ASPECT_NUMS[ratio];
+    const { x: ox, y: oy } = getPoint(e);
+    const sc = { ...crop };
+    const onMove = (ev) => {
+      if (ev.cancelable) ev.preventDefault();
+      const { x: px, y: py } = getPoint(ev);
+      const dx = (px - ox) / rect.width * 100;
+      const dy = (py - oy) / rect.height * 100;
+      let { x, y, w, h } = { ...sc };
+      const ib = imgBoundsRef.current;
+      const targetR = asp ? asp / cAsp : null;
+      if (type === "move") {
+        x = Math.max(ib.x, Math.min(ib.x + ib.w - w, x + dx));
+        y = Math.max(ib.y, Math.min(ib.y + ib.h - h, y + dy));
+        updateCrop({ x, y, w, h });
+        return;
+      }
+      if (type === "tl" || type === "ml" || type === "bl") {
+        const nw = Math.max(5, w - dx);
+        x += w - nw;
+        w = nw;
+      }
+      if (type === "tr" || type === "mr" || type === "br") {
+        w = Math.max(5, w + dx);
+      }
+      if (type === "tl" || type === "tc" || type === "tr") {
+        const nh = Math.max(5, h - dy);
+        y += h - nh;
+        h = nh;
+      }
+      if (type === "bl" || type === "bc" || type === "br") {
+        h = Math.max(5, h + dy);
+      }
+      if (targetR) {
+        const rAnchor = sc.x + sc.w;
+        const bAnchor = sc.y + sc.h;
+        const lAnchor = sc.x;
+        const tAnchor = sc.y;
+        const cxAnchor = sc.x + sc.w / 2;
+        const cyAnchor = sc.y + sc.h / 2;
+        if (type === "tc" || type === "bc") {
+          const maxH = type === "tc" ? bAnchor - ib.y : ib.y + ib.h - tAnchor;
+          const maxW = ib.w;
+          h = Math.max(5, Math.min(h, maxH, maxW / targetR));
+          w = h * targetR;
+          x = cxAnchor - w / 2;
+          y = type === "tc" ? bAnchor - h : tAnchor;
+        } else if (type === "ml" || type === "mr") {
+          const maxW = type === "ml" ? rAnchor - ib.x : ib.x + ib.w - lAnchor;
+          const maxHc = 2 * Math.min(cyAnchor - ib.y, ib.y + ib.h - cyAnchor);
+          w = Math.max(5, Math.min(w, maxW, maxHc * targetR));
+          h = w / targetR;
+          x = type === "ml" ? rAnchor - w : lAnchor;
+          y = cyAnchor - h / 2;
+        } else {
+          const maxW = type === "tl" || type === "bl" ? rAnchor - ib.x : ib.x + ib.w - lAnchor;
+          const maxH = type === "tl" || type === "tr" ? bAnchor - ib.y : ib.y + ib.h - tAnchor;
+          w = Math.max(5, Math.min(w, maxW, maxH * targetR));
+          h = w / targetR;
+          x = type === "tl" || type === "bl" ? rAnchor - w : lAnchor;
+          y = type === "tl" || type === "tr" ? bAnchor - h : tAnchor;
+        }
+      } else {
+        if (x < ib.x) {
+          w -= ib.x - x;
+          x = ib.x;
+        }
+        if (y < ib.y) {
+          h -= ib.y - y;
+          y = ib.y;
+        }
+        if (x + w > ib.x + ib.w) {
+          w = ib.x + ib.w - x;
+        }
+        if (y + h > ib.y + ib.h) {
+          h = ib.y + ib.h - y;
+        }
+        w = Math.max(5, w);
+        h = Math.max(5, h);
+      }
+      updateCrop({ x, y, w, h });
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+  };
+  const hs = { position: "absolute", width: 10, height: 10, background: "white", border: "1.5px solid rgba(0,0,0,.35)", borderRadius: 2, zIndex: 2 };
+  const br = "var(--radius-lg,12px)";
+  const drag = (type) => (e) => {
+    e.stopPropagation();
+    startDrag(e, type);
+  };
+  return /* @__PURE__ */ React.createElement("div", { ref: containerRef, style: { position: "absolute", inset: 0, userSelect: "none", touchAction: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", inset: 0, borderRadius: br, overflow: "hidden", pointerEvents: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: `${crop.y}%`, background: "rgba(0,0,0,.52)" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${crop.y + crop.h}%`, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,.52)" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${crop.y}%`, left: 0, width: `${crop.x}%`, height: `${crop.h}%`, background: "rgba(0,0,0,.52)" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${crop.y}%`, left: `${crop.x + crop.w}%`, right: 0, height: `${crop.h}%`, background: "rgba(0,0,0,.52)" } })), /* @__PURE__ */ React.createElement(
+    "div",
+    {
+      style: { position: "absolute", left: `${crop.x}%`, top: `${crop.y}%`, width: `${crop.w}%`, height: `${crop.h}%`, border: "1.5px solid rgba(255,255,255,.9)", boxSizing: "border-box", cursor: "move" },
+      onMouseDown: (e) => startDrag(e, "move"),
+      onTouchStart: (e) => startDrag(e, "move")
+    },
+    [33.33, 66.66].map((p) => /* @__PURE__ */ React.createElement(React.Fragment, { key: p }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", left: `${p}%`, top: 0, bottom: 0, width: 1, background: "rgba(255,255,255,.2)", pointerEvents: "none" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${p}%`, left: 0, right: 0, height: 1, background: "rgba(255,255,255,.2)", pointerEvents: "none" } }))),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, top: -5, left: -5, cursor: "nwse-resize" }, onMouseDown: drag("tl"), onTouchStart: drag("tl") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, top: -5, left: "calc(50% - 5px)", cursor: "ns-resize" }, onMouseDown: drag("tc"), onTouchStart: drag("tc") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, top: -5, right: -5, cursor: "nesw-resize" }, onMouseDown: drag("tr"), onTouchStart: drag("tr") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, top: "calc(50% - 5px)", left: -5, cursor: "ew-resize" }, onMouseDown: drag("ml"), onTouchStart: drag("ml") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, top: "calc(50% - 5px)", right: -5, cursor: "ew-resize" }, onMouseDown: drag("mr"), onTouchStart: drag("mr") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, bottom: -5, left: -5, cursor: "nesw-resize" }, onMouseDown: drag("bl"), onTouchStart: drag("bl") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, bottom: -5, left: "calc(50% - 5px)", cursor: "ns-resize" }, onMouseDown: drag("bc"), onTouchStart: drag("bc") }),
+    /* @__PURE__ */ React.createElement("div", { style: { ...hs, bottom: -5, right: -5, cursor: "nwse-resize" }, onMouseDown: drag("br"), onTouchStart: drag("br") }),
+    /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", left: "50%", top: "50%", transform: "translate(-50%,-50%)", width: 20, height: 20, borderRadius: "50%", background: "rgba(255,255,255,.15)", border: "1.5px solid rgba(255,255,255,.7)", pointerEvents: "none" } }),
+    /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", bottom: 6, right: 6, background: "rgba(0,0,0,.6)", color: "white", padding: "2px 7px", borderRadius: 5, fontFamily: "JetBrains Mono,monospace", fontSize: 10.5, fontWeight: 600, pointerEvents: "none" } }, ratioLabel)
+  ));
+}
+function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
+  const [selectedIdx, setSelectedIdx] = React.useState(0);
+  const [ratio, setRatio] = React.useState(0);
+  const [rotation, setRotation] = React.useState(0);
+  const [flipH, setFlipH] = React.useState(false);
+  const [flipV, setFlipV] = React.useState(false);
+  const [resetKey, setResetKey] = React.useState(0);
+  const [cropState, setCropState] = React.useState({ x: 10, y: 10, w: 80, h: 80 });
+  const [processing, setProcessing] = React.useState(false);
+  const [errors, setErrors] = React.useState([]);
+  const [origDims, setOrigDims] = React.useState({ w: 0, h: 0 });
+  const idx = Math.min(selectedIdx, Math.max(0, files.length - 1));
+  const selectedFile = files[idx] || null;
+  React.useEffect(() => {
+    setOrigDims({ w: selectedFile?.w || 0, h: selectedFile?.h || 0 });
+  }, [selectedFile?.id, selectedFile?.w]);
+  const fileUrl = useFileUrl(selectedFile);
+  const ratios = t.crop.ratios;
+  const frameRef = React.useRef(null);
+  const [frame, setFrame] = React.useState({ w: 0, h: 0 });
+  React.useEffect(() => {
+    const el = frameRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([e]) => setFrame({ w: e.contentRect.width, h: e.contentRect.height }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [files.length === 0]);
+  const rad = rotation * Math.PI / 180;
+  const cosA = Math.abs(Math.cos(rad)), sinA = Math.abs(Math.sin(rad));
+  const rotDims = origDims.w > 0 ? {
+    w: Math.round(origDims.w * cosA + origDims.h * sinA),
+    h: Math.round(origDims.w * sinA + origDims.h * cosA)
+  } : { w: 0, h: 0 };
+  const fitScale = frame.w && frame.h && origDims.w && rotDims.w ? Math.min(1, Math.min(frame.w / rotDims.w, frame.h / rotDims.h) / Math.min(frame.w / origDims.w, frame.h / origDims.h)) : 1;
+  function handleReset() {
+    setRotation(0);
+    setFlipH(false);
+    setFlipV(false);
+    setRatio(0);
+    setResetKey((k) => k + 1);
+  }
+  function handleApply() {
+    if (!selectedFile) return;
+    setProcessing(true);
+    setErrors([]);
+    Processor.processCrop(
+      [selectedFile],
+      { crop: cropState, rotation, flipH, flipV },
+      () => {
+      },
+      (ok, errs) => {
+        setErrors(errs || []);
+        setProcessing(false);
+      }
+    );
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(
+    FileStrip,
+    {
+      files,
+      selectedIdx: idx,
+      onSelect: (i) => {
+        setSelectedIdx(i);
+        setResetKey((k) => k + 1);
+      },
+      onAdd: onAddFiles
+    }
+  ), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll })), /* @__PURE__ */ React.createElement("div", { style: { padding: 12 } }, /* @__PURE__ */ React.createElement("div", { ref: frameRef, style: { position: "relative", minHeight: 360, overflow: "visible", borderRadius: "var(--radius-lg,12px)", border: "1.5px solid var(--line)" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", inset: 0, borderRadius: "var(--radius-lg,12px)", overflow: "hidden", background: "var(--surface-1,white)" } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: {
+    position: "absolute",
+    inset: 0,
+    width: "100%",
+    height: "100%",
+    objectFit: "contain",
+    transform: `rotate(${rotation}deg) scale(${(flipH ? -1 : 1) * fitScale},${(flipV ? -1 : 1) * fitScale})`,
+    transition: "transform .35s cubic-bezier(.32,1.6,.42,1)"
+  } }) : selectedFile ? /* @__PURE__ */ React.createElement("div", { style: {
+    position: "absolute",
+    inset: 0,
+    background: `linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
+    transform: `rotate(${rotation}deg) scale(${(flipH ? -1 : 1) * fitScale},${(flipV ? -1 : 1) * fitScale})`,
+    transition: "transform .35s cubic-bezier(.32,1.6,.42,1)"
+  } }) : null), /* @__PURE__ */ React.createElement(CropCanvas, { key: resetKey, ratio, ratioLabel: ratios[ratio], imageDims: rotDims, onCropChange: setCropState }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement("input", { type: "range", min: "-180", max: "180", step: "1", value: rotation, onChange: (e) => setRotation(+e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8 } }, [-90, 0, 90, 180].map((deg) => /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      key: deg,
+      className: "preset " + (rotation === deg ? "on" : ""),
+      style: { flex: 1, justifyContent: "center" },
+      onClick: () => setRotation(deg)
+    },
+    /* @__PURE__ */ React.createElement("span", { style: { width: "100%", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, deg, "\xB0")
+  )))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement(ToggleRow, { label: t.crop.flipH, on: flipH, onChange: setFlipH }), /* @__PURE__ */ React.createElement(ToggleRow, { label: t.crop.flipV, on: flipV, onChange: setFlipV })), /* @__PURE__ */ React.createElement(ErrorNote, { t, errors }), /* @__PURE__ */ React.createElement("div", { className: "actions" }, /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: handleReset }, /* @__PURE__ */ React.createElement(Icon, { name: "undo", size: 14 }), " ", t.crop.reset), processing ? /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "btn ghost",
+      style: { justifyContent: "center" },
+      onClick: () => Processor.cancelJob()
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 16 }),
+    " ",
+    t.convert.cancel
+  ) : /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "btn primary",
+      disabled: !selectedFile,
+      style: { justifyContent: "center" },
+      onClick: handleApply
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: "sparkle", size: 16 }),
+    " ",
+    t.crop.apply
+  ))));
+}
+window.lockedPartner = lockedPartner;
+window.ResizeTab = ResizeTab;
+window.CompressTab = CompressTab;
+window.CropTab = CropTab;
 const out = document.getElementById("out");
 let pass = 0, fail = 0;
 function record(name, err) {
@@ -967,6 +1666,25 @@ function brokenFile() {
       `200 KB budget gave ${big.blob.size} B but 40 KB gave ${small.blob.size} B`
     );
     assert(big.quality >= small.quality, "a looser budget chose a lower quality");
+  });
+  await test("the aspect lock survives typing a number one digit at a time", () => {
+    const ratio = 1600 / 900;
+    let w = 1600, h = 900;
+    for (const partial of [8, 80, 800]) {
+      w = partial;
+      h = lockedPartner(w, ratio, "width");
+    }
+    assert(w === 800 && h === 450, `typing "800" gave ${w}x${h}, expected 800x450`);
+    for (const partial of [2, 27, 270]) {
+      h = partial;
+      w = lockedPartner(h, ratio, "height");
+    }
+    assert(w === 480 && h === 270, `typing "270" gave ${w}x${h}, expected 480x270`);
+  });
+  await test("the aspect lock never produces a zero dimension", () => {
+    assert(lockedPartner(1, 1600 / 100, "height") >= 1, "width rounded to zero");
+    assert(lockedPartner(1, 100 / 1600, "width") >= 1, "height rounded to zero");
+    assert(lockedPartner(500, null, "width") === null, "no ratio should mean no change");
   });
   async function jobFiles(n, size = 900) {
     const out2 = [];

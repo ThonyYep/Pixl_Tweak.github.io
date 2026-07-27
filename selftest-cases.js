@@ -457,6 +457,27 @@ await test("higher budgets never produce smaller files", async () => {
   assert(big.quality >= small.quality, "a looser budget chose a lower quality");
 });
 
+// ── Aspect lock ────────────────────────────────────────────────────────
+await test("the aspect lock survives typing a number one digit at a time", () => {
+  const ratio = 1600 / 900;                       // 16:9
+  // Each keystroke must be computed from the source ratio, never from the
+  // previous pair. The old code chained them, so "800" arrived as 800x500.
+  let w = 1600, h = 900;
+  for (const partial of [8, 80, 800]) { w = partial; h = lockedPartner(w, ratio, "width"); }
+  assert(w === 800 && h === 450, `typing "800" gave ${w}x${h}, expected 800x450`);
+
+  for (const partial of [2, 27, 270]) { h = partial; w = lockedPartner(h, ratio, "height"); }
+  assert(w === 480 && h === 270, `typing "270" gave ${w}x${h}, expected 480x270`);
+});
+
+await test("the aspect lock never produces a zero dimension", () => {
+  // A very wide source plus a small height would round the partner to 0 and
+  // make an unusable canvas.
+  assert(lockedPartner(1, 1600 / 100, "height") >= 1, "width rounded to zero");
+  assert(lockedPartner(1, 100 / 1600, "width")  >= 1, "height rounded to zero");
+  assert(lockedPartner(500, null, "width") === null, "no ratio should mean no change");
+});
+
 // ── Job isolation ──────────────────────────────────────────────────────
 // Jobs can overlap: a long Convert keeps running when the user switches tool.
 // Both of these were broken — cancel tracked one job in a single slot, and the
