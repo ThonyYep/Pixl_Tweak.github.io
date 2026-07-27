@@ -134,58 +134,27 @@ function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }
   );
 }
 
-function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, onStart, onAddFiles }) {
+// Presentational: the job it renders belongs to App, because it keeps running
+// when this component unmounts on a tab switch.
+function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, job, onStart, onAddFiles }) {
   const [clearHover, setClearHover] = React.useState(false);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
 
-  const [progress, setProgress] = React.useState({});
-  const [errors,   setErrors]   = React.useState([]);
-  const [outSizes, setOutSizes] = React.useState(null);   // measured, set on completion
-  const [stopped,  setStopped]  = React.useState(false);
-  const [elapsed,  setElapsed]  = React.useState(0);
-  const timerRef = React.useRef(null);
+  const progress = job?.progress || {};
+  const errors   = job?.errors   || [];
+  const outSizes = job?.sizes    || null;
+  const stopped  = !!job?.stopped;
 
-  // Elapsed-time counter
-  React.useEffect(() => {
-    if (mode === "converting") {
-      setElapsed(0);
-      const start = Date.now();
-      timerRef.current = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - start) / 1000));
-      }, 500);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [mode]);
-
-  // Real processing via Processor
+  // Derived from the start time rather than counted, so leaving the tab and
+  // coming back shows the real elapsed time instead of restarting at zero.
+  const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     if (mode !== "converting") return;
-    setProgress({});
-    setErrors([]);
-    setOutSizes(null);
-    setStopped(false);
-    let cancelled = false;
-
-    Processor.processConvert(
-      files,
-      settings,
-      (fileId, pct, state) => {
-        if (cancelled) return;
-        setProgress(prev => ({ ...prev, [fileId]: { v: pct, state: state || (pct >= 100 ? "done" : "going") } }));
-      },
-      (ok, errs, sizes, wasCancelled) => {
-        if (cancelled) return;
-        setErrors(errs || []);
-        setOutSizes(sizes || []);
-        setStopped(!!wasCancelled);
-        setTimeout(() => setMode("done"), 300);
-      }
-    );
-
-    return () => { cancelled = true; };
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
   }, [mode]);
+  const elapsed = job?.startedAt ? Math.floor((now - job.startedAt) / 1000) : 0;
+
 
   // A failed file is finished too — otherwise the bar never reaches 100%.
   const errorText = React.useMemo(() => Object.fromEntries(errors.map(e =>

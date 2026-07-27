@@ -523,6 +523,27 @@ await test("starting a tool discards the previous job instead of dumping it", as
   });
 });
 
+await test("a queue is dispatched once, not once per remount", async () => {
+  await withoutDownloads(async () => {
+    // ConvertTab used to own the launching effect, so unmounting it on a tab
+    // switch and coming back re-ran the whole queue. Count what reaches the
+    // worker rather than trusting the final result, which looked fine either
+    // way once the duplicate job was discarded.
+    const posted = [];
+    const real = Worker.prototype.postMessage;
+    Worker.prototype.postMessage = function (m, ...rest) {
+      if (m && m.type === "run") posted.push(m.files.length);
+      return real.call(this, m, ...rest);
+    };
+    try {
+      const files = await jobFiles(4, 500);
+      await new Promise(r => P.processConvert(files, { format: "JPG", quality: 85 }, () => {}, () => r()));
+      assert(posted.length === 1, `one click dispatched ${posted.length} jobs`);
+      assert(posted[0] === 4, `dispatched ${posted[0]} files, expected 4`);
+    } finally { Worker.prototype.postMessage = real; }
+  });
+});
+
 // ── Colour depth reduction says what it does ───────────────────────────
 await test("depth reduction hits the advertised levels per channel", async () => {
   const c = busyCanvas(300);

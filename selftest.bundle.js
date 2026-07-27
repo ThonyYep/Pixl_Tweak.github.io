@@ -283,53 +283,20 @@ function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }
   const failed = state === "error";
   return /* @__PURE__ */ React.createElement("div", { className: "file-row " + (state || "") }, /* @__PURE__ */ React.createElement("div", { className: "thumb" }, /* @__PURE__ */ React.createElement(ThumbOrImg, { file })), /* @__PURE__ */ React.createElement("div", { className: "info" }, /* @__PURE__ */ React.createElement("div", { className: "name" }, file.name), /* @__PURE__ */ React.createElement("div", { className: "stats" }, /* @__PURE__ */ React.createElement("span", { className: "from" }, file.ext), /* @__PURE__ */ React.createElement("span", { className: "arrow" }, "\u2192"), /* @__PURE__ */ React.createElement("span", { className: "to" }, targetFmt), file.w > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", null, "\xB7"), /* @__PURE__ */ React.createElement("span", null, file.w, "\xD7", file.h)))), /* @__PURE__ */ React.createElement("div", { className: "size" }, /* @__PURE__ */ React.createElement("span", null, formatBytes(file.size)), failed && /* @__PURE__ */ React.createElement("span", { className: "new err" }, error), !failed && outBytes != null && /* @__PURE__ */ React.createElement("span", { className: "new", style: { fontWeight: "500" } }, formatBytes(outBytes))), /* @__PURE__ */ React.createElement("button", { className: "x", onClick: () => onRemove(file.id), "aria-label": "Remove" }, /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 14 })), /* @__PURE__ */ React.createElement("div", { className: "progress-track" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: (state === "done" ? 100 : progress || 0) + "%" } })));
 }
-function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, onStart, onAddFiles }) {
+function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, job, onStart, onAddFiles }) {
   const [clearHover, setClearHover] = React.useState(false);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
-  const [progress, setProgress] = React.useState({});
-  const [errors, setErrors] = React.useState([]);
-  const [outSizes, setOutSizes] = React.useState(null);
-  const [stopped, setStopped] = React.useState(false);
-  const [elapsed, setElapsed] = React.useState(0);
-  const timerRef = React.useRef(null);
-  React.useEffect(() => {
-    if (mode === "converting") {
-      setElapsed(0);
-      const start = Date.now();
-      timerRef.current = setInterval(() => {
-        setElapsed(Math.floor((Date.now() - start) / 1e3));
-      }, 500);
-    } else {
-      clearInterval(timerRef.current);
-    }
-    return () => clearInterval(timerRef.current);
-  }, [mode]);
+  const progress = job?.progress || {};
+  const errors = job?.errors || [];
+  const outSizes = job?.sizes || null;
+  const stopped = !!job?.stopped;
+  const [now, setNow] = React.useState(Date.now());
   React.useEffect(() => {
     if (mode !== "converting") return;
-    setProgress({});
-    setErrors([]);
-    setOutSizes(null);
-    setStopped(false);
-    let cancelled = false;
-    Processor.processConvert(
-      files,
-      settings,
-      (fileId, pct, state) => {
-        if (cancelled) return;
-        setProgress((prev) => ({ ...prev, [fileId]: { v: pct, state: state || (pct >= 100 ? "done" : "going") } }));
-      },
-      (ok, errs, sizes, wasCancelled) => {
-        if (cancelled) return;
-        setErrors(errs || []);
-        setOutSizes(sizes || []);
-        setStopped(!!wasCancelled);
-        setTimeout(() => setMode("done"), 300);
-      }
-    );
-    return () => {
-      cancelled = true;
-    };
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
   }, [mode]);
+  const elapsed = job?.startedAt ? Math.floor((now - job.startedAt) / 1e3) : 0;
   const errorText = React.useMemo(() => Object.fromEntries(errors.map(
     (e) => [e.id, errorMessage(t, e)]
   )), [errors, t]);
@@ -1043,6 +1010,25 @@ function brokenFile() {
         !firstCalledBack,
         "the superseded job still reported back, so its partial output was downloaded"
       );
+    });
+  });
+  await test("a queue is dispatched once, not once per remount", async () => {
+    await withoutDownloads(async () => {
+      const posted = [];
+      const real = Worker.prototype.postMessage;
+      Worker.prototype.postMessage = function(m, ...rest) {
+        if (m && m.type === "run") posted.push(m.files.length);
+        return real.call(this, m, ...rest);
+      };
+      try {
+        const files = await jobFiles(4, 500);
+        await new Promise((r) => P.processConvert(files, { format: "JPG", quality: 85 }, () => {
+        }, () => r()));
+        assert(posted.length === 1, `one click dispatched ${posted.length} jobs`);
+        assert(posted[0] === 4, `dispatched ${posted[0]} files, expected 4`);
+      } finally {
+        Worker.prototype.postMessage = real;
+      }
     });
   });
   await test("depth reduction hits the advertised levels per channel", async () => {

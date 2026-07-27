@@ -255,6 +255,29 @@ function App() {
     icoSizes:       [],
   });
 
+  // The conversion outlives the tab it was started from, so its state lives
+  // here rather than in ConvertTab. ConvertTab unmounts on a tab switch, and
+  // when it came back its effect saw mode === "converting" and launched the
+  // whole queue a second time — two full jobs for one click.
+  const [job, setJob] = React.useState(null);
+
+  function startConvert() {
+    setMode("converting");
+    setJob({ progress: {}, errors: [], sizes: null, stopped: false, startedAt: Date.now() });
+    Processor.processConvert(
+      files,
+      settings,
+      (fileId, pct, state) => setJob(j => j && ({
+        ...j,
+        progress: { ...j.progress, [fileId]: { v: pct, state: state || (pct >= 100 ? "done" : "going") } },
+      })),
+      (ok, errs, sizes, wasCancelled) => {
+        setJob(j => j && ({ ...j, errors: errs || [], sizes: sizes || [], stopped: !!wasCancelled }));
+        setTimeout(() => setMode("done"), 300);
+      }
+    );
+  }
+
   // Fixed look — written once.
   React.useEffect(() => {
     const root = document.documentElement;
@@ -357,7 +380,7 @@ function App() {
             t={t} files={files} setFiles={setFiles}
             mode={mode} setMode={setMode}
             settings={settings} setSettings={setSettings}
-            onStart={() => setMode("converting")}
+            job={job} onStart={startConvert}
             onAddFiles={openAddFilePicker} />
         );
       case "resize":   return <ResizeTab   t={t} files={files} onAddFiles={openAddFilePicker} onDropFiles={addFiles} onClearFiles={() => setFiles([])} />;
