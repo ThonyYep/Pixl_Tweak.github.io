@@ -41,6 +41,7 @@ const COPY = {
       convertingSub: "Working through your queue, hang tight.",
       doneTitle: "All done!",
       doneSub: "Converted {n} images, saved {saved}.",
+      downloads: "Downloads",
       failTitle: "Couldn't convert everything",
       failSub: "{n} of {total} files failed — see the list below.",
       errFormat: "{fmt} not supported here",
@@ -81,6 +82,7 @@ const COPY = {
       upscale: "Allow upscaling",
       outputFormat: "Output format",
       transparent: "Preserve transparency",
+      appliesToAll: "Applies to all {n} files",
       apply: "Apply",
     },
 
@@ -170,6 +172,7 @@ const COPY = {
       convertingSub: "Procesando tu cola, un momento.",
       doneTitle: "¡Listo!",
       doneSub: "Se convirtieron {n} imágenes, ahorraste {saved}.",
+      downloads: "Descargas",
       failTitle: "No se pudo convertir todo",
       failSub: "Fallaron {n} de {total} archivos — revisa la lista.",
       errFormat: "{fmt} no soportado aquí",
@@ -210,6 +213,7 @@ const COPY = {
       upscale: "Permitir ampliación",
       outputFormat: "Formato de salida",
       transparent: "Conservar transparencia",
+      appliesToAll: "Se aplica a los {n} archivos",
       apply: "Aplicar",
     },
 

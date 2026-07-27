@@ -254,7 +254,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 
         {files.length > 1 && (
           <div style={{ fontSize:12, color:"var(--ink-3)", padding:"4px 0 2px" }}>
-            Applies to all {files.length} files
+            {t.resize.appliesToAll.replace("{n}", files.length)}
           </div>
         )}
 

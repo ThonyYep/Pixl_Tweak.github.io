@@ -248,7 +248,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             </button>
             {!allFailed && (
               <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"var(--ink-3)", fontWeight:500 }}>
-                <Icon name="folder" size={13} /> Downloads ↓
+                <Icon name="folder" size={13} /> {t.convert.downloads} ↓
               </span>
             )}
           </div>
