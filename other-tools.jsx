@@ -244,22 +244,12 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 
         {(format === "PNG" || format === "WEBP") && (
           <div className="field">
-            <div className="toggle-row">
-              <span>{t.resize.transparent}</span>
-              <div className={"toggle " + (transparent?"on":"")} onClick={() => setTransparent(!transparent)}>
-                <div className="dot" />
-              </div>
-            </div>
+            <ToggleRow label={t.resize.transparent} on={transparent} onChange={setTransparent} />
           </div>
         )}
 
         <div className="field">
-          <div className="toggle-row">
-            <span>{t.resize.upscale}</span>
-            <div className={"toggle " + (upscale?"on":"")} onClick={() => setUpscale(!upscale)}>
-              <div className="dot" />
-            </div>
-          </div>
+          <ToggleRow label={t.resize.upscale} on={upscale} onChange={setUpscale} />
         </div>
 
         {files.length > 1 && (
@@ -409,12 +399,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 
         {format === "PNG" && (
           <div className="field">
-            <div className="toggle-row" style={{ borderTop:0, paddingTop:0 }}>
-              <span>{t.compress.reduceColors}</span>
-              <div className={"toggle " + (reduceColors?"on":"")} onClick={() => setReduceColors(!reduceColors)}>
-                <div className="dot" />
-              </div>
-            </div>
+            <ToggleRow label={t.compress.reduceColors} on={reduceColors} onChange={setReduceColors} />
             <div style={{ fontSize:11.5, color:"var(--ink-3)", marginTop:4 }}>{t.compress.reduceColorsHint}</div>
             {reduceColors && (
               <div style={{ marginTop:12 }}>
@@ -821,14 +806,8 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         </div>
 
         <div className="field">
-          <div className="toggle-row">
-            <span>{t.crop.flipH}</span>
-            <div className={"toggle " + (flipH?"on":"")} onClick={() => setFlipH(!flipH)}><div className="dot" /></div>
-          </div>
-          <div className="toggle-row">
-            <span>{t.crop.flipV}</span>
-            <div className={"toggle " + (flipV?"on":"")} onClick={() => setFlipV(!flipV)}><div className="dot" /></div>
-          </div>
+          <ToggleRow label={t.crop.flipH} on={flipH} onChange={setFlipH} />
+          <ToggleRow label={t.crop.flipV} on={flipV} onChange={setFlipV} />
         </div>
 
         <ErrorNote t={t} errors={errors} />

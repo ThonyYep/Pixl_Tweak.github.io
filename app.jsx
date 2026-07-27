@@ -269,6 +269,12 @@ function App() {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
+  // index.html ships lang="en" but the interface starts in Spanish, and this
+  // is what a screen reader picks its pronunciation from.
+  React.useEffect(() => {
+    document.documentElement.lang = lang;
+  }, [lang]);
+
   const fileInputRef = React.useRef(null);
 
   function mapFile(f, i) {

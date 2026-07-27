@@ -28,6 +28,27 @@ const FMT_HAS_ALPHA   = new Set(["PNG","WEBP","AVIF"]);
 // size that got silently dropped.
 const ICO_SIZES  = [8,16,24,32,48,64,128,256];
 
+// One switch and its label, wired together. A real <button role="switch">
+// rather than a <div onClick>: reachable with Tab, activated by Space and
+// Enter with no key handler of our own, and announced as a switch instead of
+// as a stray piece of text.
+function ToggleRow({ label, on, onChange }) {
+  return (
+    <div className="toggle-row">
+      <span>{label}</span>
+      <button
+        type="button"
+        role="switch"
+        aria-checked={!!on}
+        aria-label={label}
+        className={"toggle " + (on ? "on" : "")}
+        onClick={() => onChange(!on)}>
+        <span className="dot" />
+      </button>
+    </div>
+  );
+}
+
 // Three distinct failures, three distinct messages — "unsupported format" for
 // an image that is simply too big sends the user hunting in the wrong place.
 function errorMessage(t, e) {
@@ -311,13 +332,8 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         {/* ICO-specific options */}
         {isICO && (
           <div className="field">
-            <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
-              <span>{t.convert.icoKeepOriginal}</span>
-              <div className={"toggle " + (icoKeepOrig ? "on" : "")}
-                onClick={() => setSettings({ ...settings, icoKeepOriginal: !icoKeepOrig })}>
-                <div className="dot" />
-              </div>
-            </div>
+            <ToggleRow label={t.convert.icoKeepOriginal} on={icoKeepOrig}
+              onChange={v => setSettings({ ...settings, icoKeepOriginal: v })} />
             {icoKeepOrig && (
               <div style={{ fontSize: 12, color: "var(--ink-3)", padding: "4px 0 8px" }}>
                 {t.convert.icoIncludeSource}
@@ -372,13 +388,8 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         {/* PDF-specific options */}
         {isPDF && (
           <div className="field">
-            <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
-              <span>{t.convert.mergePDF}</span>
-              <div className={"toggle " + (mergePDF ? "on" : "")}
-                onClick={() => setSettings({ ...settings, mergePDF: !mergePDF })}>
-                <div className="dot" />
-              </div>
-            </div>
+            <ToggleRow label={t.convert.mergePDF} on={mergePDF}
+              onChange={v => setSettings({ ...settings, mergePDF: v })} />
           </div>
         )}
 
@@ -386,13 +397,8 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             EXIF and ICC toggles used to sit here doing nothing. */}
         <div className="field">
           {hasAlpha && (
-            <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
-              <span>{t.convert.transparent}</span>
-              <div className={"toggle " + (settings.transparent ? "on" : "")}
-                onClick={() => setSettings({ ...settings, transparent: !settings.transparent })}>
-                <div className="dot" />
-              </div>
-            </div>
+            <ToggleRow label={t.convert.transparent} on={settings.transparent}
+              onChange={v => setSettings({ ...settings, transparent: v })} />
           )}
           <div style={{ fontSize: 11.5, color: "var(--ink-3)", paddingTop: hasAlpha ? 10 : 0, lineHeight: 1.45 }}>
             {t.convert.metaNote}
@@ -455,6 +461,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
 window.ConvertTab     = ConvertTab;
 window.DEFAULT_FORMAT = DEFAULT_FORMAT;
 window.errorMessage   = errorMessage;
+window.ToggleRow      = ToggleRow;
 window.SAMPLE_FILES = SAMPLE_FILES;
 window.ALL_FORMATS  = ALL_FORMATS;
 window.formatBytes  = formatBytes;
