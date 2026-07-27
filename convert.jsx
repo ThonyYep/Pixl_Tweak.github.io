@@ -215,6 +215,8 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const isPDF       = fmt === "PDF";
   const hasQuality  = FMT_HAS_QUALITY.has(fmt);
   const hasAlpha    = FMT_HAS_ALPHA.has(fmt);
+  // Only JPG and PNG have a WASM encoder wired up.
+  const hasMaxCompress = fmt === "JPG" || fmt === "PNG";
   const icoSizes    = settings.icoSizes    || [16,32,48,256];
   const icoKeepOrig = settings.icoKeepOriginal !== false;
   const mergePDF    = !!settings.mergePDF;
@@ -418,6 +420,15 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         {/* Transparency is the only one of these canvas can actually honour —
             EXIF and ICC toggles used to sit here doing nothing. */}
         <div className="field">
+          {hasMaxCompress && (
+            <>
+              <ToggleRow label={t.convert.maxCompress} on={!!settings.maxCompress}
+                onChange={v => setSettings({ ...settings, maxCompress: v })} />
+              <div style={{ fontSize: 11.5, color: "var(--ink-3)", paddingTop: 6, lineHeight: 1.45 }}>
+                {t.convert.maxCompressHint}
+              </div>
+            </>
+          )}
           {hasAlpha && (
             <ToggleRow label={t.convert.transparent} on={settings.transparent}
               onChange={v => setSettings({ ...settings, transparent: v })} />

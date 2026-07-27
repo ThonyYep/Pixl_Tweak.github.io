@@ -15,3 +15,6 @@ desktop.ini
 .vscode/
 .idea/
 *.swp
+
+# NOT ignored on purpose: vendor/. build.mjs copies the WASM codecs out of
+# node_modules, and GitHub Pages has to serve them.

@@ -442,6 +442,52 @@ await test("higher budgets never produce smaller files", async () => {
   assert(big.quality >= small.quality, "a looser budget chose a lower quality");
 });
 
+// ── WASM encoders ──────────────────────────────────────────────────────
+await test("OxiPNG is smaller than the browser's PNG, and still lossless", async () => {
+  const c = busyCanvas(400);
+  const ref = c.getContext("2d").getImageData(0, 0, 400, 400).data;
+  const browser = await P.canvasToBlob(c, "PNG", 100, true, false);
+  const wasm    = await P.canvasToBlob(c, "PNG", 100, true, true);
+  assert(wasm.type === "image/png", "did not come back as PNG: " + wasm.type);
+  assert(wasm.size < browser.size,
+    `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
+  // Lossless means pixel-identical, not just "looks fine".
+  const bmp = await createImageBitmap(wasm);
+  const t = document.createElement("canvas");
+  t.width = 400; t.height = 400;
+  t.getContext("2d").drawImage(bmp, 0, 0);
+  const got = t.getContext("2d").getImageData(0, 0, 400, 400).data;
+  let diff = 0;
+  for (let i = 0; i < ref.length; i++) if (ref[i] !== got[i]) diff++;
+  assert(diff === 0, `${diff} subpixels changed — OxiPNG must be lossless`);
+});
+
+await test("MozJPEG is smaller than the browser's JPEG at the same quality", async () => {
+  const c = busyCanvas(500);
+  const browser = await P.canvasToBlob(c, "JPG", 75, false, false);
+  const wasm    = await P.canvasToBlob(c, "JPG", 75, false, true);
+  assert(wasm.type === "image/jpeg", "did not come back as JPEG: " + wasm.type);
+  assert(wasm.size < browser.size,
+    `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
+});
+
+await test("MozJPEG emits a progressive JPEG, which canvas cannot", async () => {
+  const blob = await P.canvasToBlob(busyCanvas(300), "JPG", 75, false, true);
+  const u = new Uint8Array(await blob.arrayBuffer());
+  assert(u[0] === 0xFF && u[1] === 0xD8, "not a JPEG at all");
+  // SOF2 marker — progressive DCT. Baseline files carry SOF0 instead.
+  let sof2 = false;
+  for (let i = 0; i < u.length - 1; i++) if (u[i] === 0xFF && u[i + 1] === 0xC2) { sof2 = true; break; }
+  assert(sof2, "no SOF2 marker — this is baseline, so the wasm path did not run");
+});
+
+await test("maxCompress is ignored where no wasm encoder exists", async () => {
+  // WEBP has no jSquash encoder wired up; asking must not break or mislabel.
+  const c = busyCanvas(200);
+  const blob = await P.canvasToBlob(c, "WEBP", 80, true, true);
+  assert(blob.type === "image/webp", "fell through to the wrong format: " + blob.type);
+});
+
 // ponytail: single-file cases only — anything with 2+ files takes the zip
   // path and would write to the user's Downloads folder mid-test.
 

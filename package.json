@@ -9,6 +9,8 @@
     "watch": "node --watch-path=. build.mjs"
   },
   "devDependencies": {
+    "@jsquash/jpeg": "^1.6.0",
+    "@jsquash/oxipng": "^2.3.0",
     "esbuild": "^0.28.1"
   }
 }

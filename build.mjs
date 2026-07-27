@@ -8,7 +8,34 @@
 // cross-file reference would come back undefined.
 
 import { transform } from "esbuild";
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
+import { dirname } from "node:path";
+
+// The WASM codecs are vendored rather than pulled from a CDN, because the app
+// claims to work offline and a CDN would make that false again for anyone who
+// turned the option on. Copied verbatim: every file below resolves its
+// imports and its .wasm relative to itself, so nothing needs rewriting.
+// @jsquash/oxipng's own optimise.js is skipped — it imports a bare specifier
+// for a multi-threaded path that needs COOP/COEP headers GitHub Pages does not
+// send, so oxipng.js here wraps the single-threaded codec directly.
+const VENDOR = [
+  ["@jsquash/jpeg/encode.js",                     "vendor/jpeg/encode.js"],
+  ["@jsquash/jpeg/meta.js",                       "vendor/jpeg/meta.js"],
+  ["@jsquash/jpeg/utils.js",                      "vendor/jpeg/utils.js"],
+  ["@jsquash/jpeg/codec/pre.js",                  "vendor/jpeg/codec/pre.js"],
+  ["@jsquash/jpeg/codec/enc/mozjpeg_enc.js",      "vendor/jpeg/codec/enc/mozjpeg_enc.js"],
+  ["@jsquash/jpeg/codec/enc/mozjpeg_enc.wasm",    "vendor/jpeg/codec/enc/mozjpeg_enc.wasm"],
+  ["@jsquash/oxipng/codec/pkg/squoosh_oxipng.js",     "vendor/oxipng/squoosh_oxipng.js"],
+  ["@jsquash/oxipng/codec/pkg/squoosh_oxipng_bg.wasm", "vendor/oxipng/squoosh_oxipng_bg.wasm"],
+];
+
+let vendored = 0;
+for (const [from, to] of VENDOR) {
+  await mkdir(dirname(to), { recursive: true });
+  await copyFile("node_modules/" + from, to);
+  vendored++;
+}
+console.log(`vendor/              ${vendored} codec files copied`);
 
 const BUNDLES = [
   { out: "bundle.js", minify: true,

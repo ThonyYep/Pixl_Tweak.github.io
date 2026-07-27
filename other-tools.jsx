@@ -314,6 +314,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [maxColors,    setMaxColors]    = React.useState(null);
   const [processing,   setProcessing]   = React.useState(false);
   const [errors,       setErrors]       = React.useState([]);
+  const [maxCompress,  setMaxCompress]  = React.useState(false);
   const [mode,         setMode]         = React.useState("quality");  // or "size"
   const [targetNum,    setTargetNum]    = React.useState(500);
   const [targetUnit,   setTargetUnit]   = React.useState("KB");
@@ -338,7 +339,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 
   // Any settings change invalidates the last run; drop its preview URL too.
   React.useEffect(() => { setResult(null); },
-    [selectedFile?.id, format, quality, reduceColors, maxColors, mode, targetNum, targetUnit]);
+    [selectedFile?.id, format, quality, reduceColors, maxColors, mode, targetNum, targetUnit, maxCompress]);
   React.useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
 
   function handleStart() {
@@ -347,7 +348,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     setErrors([]);
     setResult(null);
     Processor.processCompress([selectedFile],
-      { format, quality, reduceColors, maxColors, targetBytes },
+      { format, quality, reduceColors, maxColors, targetBytes, maxCompress },
       () => {}, (ok, errs, sizes) => {
         setErrors(errs || []);
         const s = sizes && sizes[0];
@@ -533,6 +534,13 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               <span className="emph">{formatBytes(totalAfter)}</span>
               <span style={{ marginLeft:"auto" }}>{formatBytes(totalBefore - totalAfter)} {t.common.saved}</span>
             </>}
+          </div>
+        </div>
+
+        <div className="field">
+          <ToggleRow label={t.convert.maxCompress} on={maxCompress} onChange={setMaxCompress} />
+          <div style={{ fontSize:11.5, color:"var(--ink-3)", paddingTop:6, lineHeight:1.45 }}>
+            {t.convert.maxCompressHint}
           </div>
         </div>
 

@@ -203,7 +203,33 @@ const ENGINE = (() => {
     return new Blob([buf], { type: "image/x-icon" });
   }
 
-  async function canvasToBlob(canvas, format, quality, transparent) {
+  // ── Optional WASM encoders ───────────────────────────────────────────────
+  // MozJPEG and OxiPNG, ~460 KB of wasm between them, so they load on first
+  // use and never for runs that don't ask. Relative to self.location so the
+  // same specifier resolves from the page and from inside the worker.
+  const codecs = {};
+  function loadCodec(name, path) {
+    if (!codecs[name]) {
+      codecs[name] = import(new URL(path, self.location.href).href).then(m => m.default);
+    }
+    return codecs[name];
+  }
+  const MAX_COMPRESS_FORMATS = new Set(["JPG", "PNG"]);
+
+  async function encodeMax(canvas, format, quality) {
+    const id = ctx2d(canvas).getImageData(0, 0, canvas.width, canvas.height);
+    if (format === "JPG") {
+      const encode = await loadCodec("mozjpeg", "vendor/jpeg/encode.js");
+      // Progressive and the MSSIM-tuned quantisation table are jSquash's own
+      // defaults; the browser encoder can produce neither.
+      return new Blob([await encode(id, { quality: quality == null ? 82 : quality })],
+                      { type: "image/jpeg" });
+    }
+    const optimise = await loadCodec("oxipng", "vendor/oxipng.js");
+    return new Blob([await optimise(id)], { type: "image/png" });
+  }
+
+  async function canvasToBlob(canvas, format, quality, transparent, maxCompress) {
     const q = (quality == null ? 82 : quality) / 100;
     if (format === "BMP") return encodeBMP(canvas);
     // JPG has no alpha channel at all; the others flatten only if asked.
@@ -216,6 +242,11 @@ const ENGINE = (() => {
       ctx.fillRect(0, 0, flat.width, flat.height);
       ctx.drawImage(canvas, 0, 0);
       src = flat;
+    }
+    if (maxCompress && MAX_COMPRESS_FORMATS.has(format)) {
+      const out = await encodeMax(src, format, quality);
+      if (src !== canvas) releaseCanvas(src);
+      return out;
     }
     const mimeMap = {
       PNG:  ["image/png",  1.0],
@@ -253,18 +284,18 @@ const ENGINE = (() => {
   // nothing to model: what a quality setting costs depends on the image, so
   // the only way to know is to encode and look. Binary search settles it in
   // about seven encodes. met:false means even quality 10 overshot.
-  async function encodeToTargetSize(canvas, format, targetBytes, transparent, onStep) {
+  async function encodeToTargetSize(canvas, format, targetBytes, transparent, onStep, maxCompress) {
     let lo = 10, hi = 100, best = null, steps = 0;
     while (lo <= hi) {
       const q = Math.round((lo + hi) / 2);
-      const blob = await canvasToBlob(canvas, format, q, transparent);
+      const blob = await canvasToBlob(canvas, format, q, transparent, maxCompress);
       steps++;
       if (onStep) onStep(steps, q, blob.size);
       if (blob.size <= targetBytes) { best = { blob, quality: q }; lo = q + 1; }
       else { hi = q - 1; }
     }
     if (best) return { ...best, steps, met: true };
-    const blob = await canvasToBlob(canvas, format, 10, transparent);
+    const blob = await canvasToBlob(canvas, format, 10, transparent, maxCompress);
     return { blob, quality: 10, steps: steps + 1, met: false };
   }
 
@@ -329,7 +360,7 @@ const ENGINE = (() => {
 
     } else if (op === "convert") {
       outputs.push({ path: outputName(file.name, s.format),
-                     blob: await canvasToBlob(src, s.format, s.quality, s.transparent !== false) });
+                     blob: await canvasToBlob(src, s.format, s.quality, s.transparent !== false, s.maxCompress) });
 
     } else if (op === "resize") {
       let tw = s.w, th = s.h;
@@ -345,10 +376,10 @@ const ENGINE = (() => {
       let blob;
       if (s.targetBytes > 0) {
         const r = await encodeToTargetSize(c, s.format, s.targetBytes, true,
-          n => onStep(Math.min(0.9, n / 8)));
+          n => onStep(Math.min(0.9, n / 8)), s.maxCompress);
         blob = r.blob; quality = r.quality; met = r.met;
       } else {
-        blob = await canvasToBlob(c, s.format, s.quality, true);
+        blob = await canvasToBlob(c, s.format, s.quality, true, s.maxCompress);
       }
       if (c !== src) releaseCanvas(c);
       outputs.push({ path: baseName(file.name) + "_compressed." + s.format.toLowerCase(), blob });
@@ -367,7 +398,8 @@ const ENGINE = (() => {
 
   return { ctx2d, makeCanvas, decodeToCanvas, sampleCanvas, sourceCanvas, releaseCanvas,
            preShrink, resizeContain, resizeCanvas, posterizeCanvas, encodeBMP, encodeICO,
-           canvasToBlob, encodeToTargetSize, cropRotate, outputName, runOne };
+           canvasToBlob, encodeToTargetSize, cropRotate, outputName, runOne,
+           MAX_COMPRESS_FORMATS };
 })();
 
 if (typeof self !== "undefined" && !self.document) self.ENGINE = ENGINE;

@@ -32,6 +32,22 @@ with the arrow keys once it has focus.
 All four tools run in a Web Worker, so the page stays responsive and any job
 can be cancelled mid-queue — finished files are kept, the rest are dropped.
 
+**Maximum compression** swaps the browser's encoders for MozJPEG and OxiPNG,
+compiled to WASM. Measured against the built-in encoders on this repo's own
+test images:
+
+| source | JPEG (MozJPEG) | PNG (OxiPNG) |
+|---|---|---|
+| photo | −8% | −46% |
+| UI screenshot | −13% | −96% |
+| logo | −22% | −81% |
+
+PNG gains the most because Chromium deliberately encodes PNG at a
+speed-optimised, size-pessimal compression level. MozJPEG also emits
+progressive JPEGs, which canvas cannot. It costs ~460 KB of codec, loaded
+only when the option is switched on and cached from then on, and it is
+slower — around a second for a large PNG.
+
 **Crop & Rotate** — draggable crop box with aspect presets, free rotation from
 −180° to 180°, and horizontal / vertical flips.
 
