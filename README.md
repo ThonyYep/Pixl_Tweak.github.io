@@ -20,8 +20,14 @@ pick) alongside a PNG of each size.
 **Resize** — width and height with optional aspect lock, three fit modes
 (contain / cover / stretch), and an upscale toggle. Output as JPG, PNG or WebP.
 
-**Compress** — quality slider with Web / Email / Print / Custom presets, plus
-optional colour reduction for PNG. Reports the real output size once encoded.
+**Compress** — two modes. *Quality* is the usual slider, with Web / Email /
+Print presets. *Target size* takes a number in KB or MB and finds the highest
+quality that fits, by encoding and measuring — about seven tries — and says so
+plainly when the target simply isn't reachable. Optional colour reduction for
+PNG. Every size reported is measured, never modelled.
+
+After a run, the preview becomes a **before/after wipe** you can drag, or move
+with the arrow keys once it has focus.
 
 **Crop & Rotate** — draggable crop box with aspect presets, free rotation from
 −180° to 180°, and horizontal / vertical flips.

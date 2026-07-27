@@ -289,6 +289,29 @@ async function canvasToBlob(canvas, format, quality, transparent) {
   return blob;
 }
 
+// Find the highest quality whose output still fits under a byte target.
+//
+// There is nothing to model here: how many bytes a quality setting costs
+// depends entirely on the image, so the only way to know is to encode and
+// look. Binary search over 10..100 settles it in about seven encodes.
+//
+// Returns met:false with the smallest achievable file when even quality 10
+// overshoots — better to hand back something and say so than to loop.
+async function encodeToTargetSize(canvas, format, targetBytes, transparent, onStep) {
+  let lo = 10, hi = 100, best = null, steps = 0;
+  while (lo <= hi) {
+    const q = Math.round((lo + hi) / 2);
+    const blob = await canvasToBlob(canvas, format, q, transparent);
+    steps++;
+    if (onStep) onStep(steps, q, blob.size);
+    if (blob.size <= targetBytes) { best = { blob, quality: q }; lo = q + 1; }
+    else { hi = q - 1; }
+  }
+  if (best) return { ...best, steps, met: true };
+  const blob = await canvasToBlob(canvas, format, 10, transparent);
+  return { blob, quality: 10, steps: steps + 1, met: false };
+}
+
 function getOutputName(originalName, format) {
   const base = originalName.replace(/\.[^/.]+$/, "");
   const extMap = { JPG:"jpg", PNG:"png", WEBP:"webp", AVIF:"avif", BMP:"bmp", PDF:"pdf", ICO:"ico" };
@@ -491,7 +514,7 @@ async function processResize(files, resizeSettings, onProgress, onDone) {
 }
 
 async function processCompress(files, compressSettings, onProgress, onDone) {
-  const { format, quality, reduceColors, maxColors } = compressSettings;
+  const { format, quality, reduceColors, maxColors, targetBytes } = compressSettings;
   const isMulti    = files.length > 1;
   const zipEntries = [];
   const errors     = [];
@@ -505,12 +528,20 @@ async function processCompress(files, compressSettings, onProgress, onDone) {
       if (format === "PNG" && reduceColors && maxColors) {
         canvas = posterizeCanvas(canvas, maxColors);
       }
-      const blob    = await canvasToBlob(canvas, format, quality, true);
+      let blob, usedQuality = quality, met = true;
+      if (targetBytes > 0) {
+        const r = await encodeToTargetSize(canvas, format, targetBytes, true,
+          (n) => onProgress(file.id, Math.min(88, 50 + n * 5)));
+        blob = r.blob; usedQuality = r.quality; met = r.met;
+      } else {
+        blob = await canvasToBlob(canvas, format, quality, true);
+      }
       const outName = file.name.replace(/\.[^/.]+$/, "") + "_compressed." + format.toLowerCase();
       onProgress(file.id, 90);
       if (isMulti) zipEntries.push({ path: outName, blob });
       else downloadBlob(blob, outName);
-      sizes.push({ id: file.id, bytes: blob.size });
+      // blob rides along so the caller can preview the result without re-encoding
+      sizes.push({ id: file.id, bytes: blob.size, quality: usedQuality, met, blob });
       onProgress(file.id, 100);
     } catch (err) {
       console.error("processCompress error:", file.name, err);
@@ -603,6 +634,7 @@ window.Processor = {
   preShrink,
   canEncode,
   canvasToBlob,
+  encodeToTargetSize,
   getOutputName,
   encodeBMP,
   encodeICO,

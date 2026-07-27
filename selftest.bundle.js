@@ -265,6 +265,24 @@ async function canvasToBlob(canvas, format, quality, transparent) {
   if (blob.type !== mime) throw new Error("UNSUPPORTED_OUTPUT:" + format);
   return blob;
 }
+async function encodeToTargetSize(canvas, format, targetBytes, transparent, onStep) {
+  let lo = 10, hi = 100, best = null, steps = 0;
+  while (lo <= hi) {
+    const q = Math.round((lo + hi) / 2);
+    const blob2 = await canvasToBlob(canvas, format, q, transparent);
+    steps++;
+    if (onStep) onStep(steps, q, blob2.size);
+    if (blob2.size <= targetBytes) {
+      best = { blob: blob2, quality: q };
+      lo = q + 1;
+    } else {
+      hi = q - 1;
+    }
+  }
+  if (best) return { ...best, steps, met: true };
+  const blob = await canvasToBlob(canvas, format, 10, transparent);
+  return { blob, quality: 10, steps: steps + 1, met: false };
+}
 function getOutputName(originalName, format) {
   const base = originalName.replace(/\.[^/.]+$/, "");
   const extMap = { JPG: "jpg", PNG: "png", WEBP: "webp", AVIF: "avif", BMP: "bmp", PDF: "pdf", ICO: "ico" };
@@ -454,7 +472,7 @@ async function processResize(files, resizeSettings, onProgress, onDone) {
   onDone(errors.length === 0, errors);
 }
 async function processCompress(files, compressSettings, onProgress, onDone) {
-  const { format, quality, reduceColors, maxColors } = compressSettings;
+  const { format, quality, reduceColors, maxColors, targetBytes } = compressSettings;
   const isMulti = files.length > 1;
   const zipEntries = [];
   const errors = [];
@@ -467,12 +485,26 @@ async function processCompress(files, compressSettings, onProgress, onDone) {
       if (format === "PNG" && reduceColors && maxColors) {
         canvas = posterizeCanvas(canvas, maxColors);
       }
-      const blob = await canvasToBlob(canvas, format, quality, true);
+      let blob, usedQuality = quality, met = true;
+      if (targetBytes > 0) {
+        const r = await encodeToTargetSize(
+          canvas,
+          format,
+          targetBytes,
+          true,
+          (n) => onProgress(file.id, Math.min(88, 50 + n * 5))
+        );
+        blob = r.blob;
+        usedQuality = r.quality;
+        met = r.met;
+      } else {
+        blob = await canvasToBlob(canvas, format, quality, true);
+      }
       const outName = file.name.replace(/\.[^/.]+$/, "") + "_compressed." + format.toLowerCase();
       onProgress(file.id, 90);
       if (isMulti) zipEntries.push({ path: outName, blob });
       else downloadBlob(blob, outName);
-      sizes.push({ id: file.id, bytes: blob.size });
+      sizes.push({ id: file.id, bytes: blob.size, quality: usedQuality, met, blob });
       onProgress(file.id, 100);
     } catch (err) {
       console.error("processCompress error:", file.name, err);
@@ -554,6 +586,7 @@ window.Processor = {
   preShrink,
   canEncode,
   canvasToBlob,
+  encodeToTargetSize,
   getOutputName,
   encodeBMP,
   encodeICO,
@@ -1218,6 +1251,58 @@ function brokenFile() {
     assert(errorMessage(t, { tooBig: "20000\xD720000" }) === "too big 20000\xD720000", "size case");
     assert(errorMessage(t, { fmt: "AVIF" }) === "no AVIF", "format case");
     assert(errorMessage(t, {}) === "unreadable", "decode case");
+  });
+  function busyCanvas(n) {
+    const c = document.createElement("canvas");
+    c.width = c.height = n;
+    const x = c.getContext("2d");
+    const g = x.createLinearGradient(0, 0, n, n);
+    g.addColorStop(0, "#d6336c");
+    g.addColorStop(0.5, "#fab005");
+    g.addColorStop(1, "#1864ab");
+    x.fillStyle = g;
+    x.fillRect(0, 0, n, n);
+    for (let i = 0; i < 900; i++) {
+      const a = i * 2.399963 % 6.283, r = i * 37 % n;
+      x.fillStyle = `hsla(${i * 7 % 360},70%,${30 + i % 50}%,.5)`;
+      x.beginPath();
+      x.arc((Math.cos(a) * r + n) % n, (Math.sin(a) * r + n) % n, 2 + i % 20, 0, 6.283);
+      x.fill();
+    }
+    return c;
+  }
+  await test("target size lands under the budget, not over it", async () => {
+    const c = busyCanvas(600);
+    for (const target of [3e5, 12e4, 4e4]) {
+      const r = await P.encodeToTargetSize(c, "JPG", target, true);
+      assert(r.met, `reported unreachable at ${target} B`);
+      assert(r.blob.size <= target, `${target} B budget, produced ${r.blob.size} B`);
+    }
+  });
+  await test("target size uses most of the budget rather than undershooting", async () => {
+    const r = await P.encodeToTargetSize(busyCanvas(600), "JPG", 12e4, true);
+    const used = r.blob.size / 12e4;
+    assert(used > 0.85, `only used ${Math.round(used * 100)}% of the budget \u2014 search stopped short`);
+  });
+  await test("an unreachable target is reported, not faked", async () => {
+    const r = await P.encodeToTargetSize(busyCanvas(600), "JPG", 1e3, true);
+    assert(r.met === false, "claimed success on an impossible target");
+    assert(r.blob.size > 1e3, "test premise wrong \u2014 1 KB was reachable");
+    assert(r.quality === 10, `fell back at quality ${r.quality}, expected the floor`);
+  });
+  await test("the search converges instead of scanning every quality", async () => {
+    const r = await P.encodeToTargetSize(busyCanvas(400), "JPG", 5e4, true);
+    assert(r.steps <= 8, `took ${r.steps} encodes; binary search over 10..100 needs at most 7`);
+  });
+  await test("higher budgets never produce smaller files", async () => {
+    const c = busyCanvas(500);
+    const small = await P.encodeToTargetSize(c, "JPG", 4e4, true);
+    const big = await P.encodeToTargetSize(c, "JPG", 2e5, true);
+    assert(
+      big.blob.size >= small.blob.size,
+      `200 KB budget gave ${big.blob.size} B but 40 KB gave ${small.blob.size} B`
+    );
+    assert(big.quality >= small.quality, "a looser budget chose a lower quality");
   });
   const s = document.getElementById("summary");
   s.textContent = `${pass} passed, ${fail} failed`;

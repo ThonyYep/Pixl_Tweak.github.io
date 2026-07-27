@@ -16,6 +16,31 @@ function ErrorNote({ t, errors }) {
   );
 }
 
+// Before/after wipe. The control is a real <input type="range">, so dragging,
+// focus and arrow keys come from the platform — Squoosh's equivalent handle is
+// mouse-only. The thumb is collapsed to 1px so the track spans the full width
+// and the drawn line lands exactly where the pointer is.
+function CompareSlider({ before, after, label, beforeLabel, afterLabel }) {
+  const [pos, setPos] = React.useState(50);
+  return (
+    <div className="wipe">
+      <img src={before} alt="" className="wipe-img" />
+      <div className="wipe-clip" style={{ clipPath: `inset(0 0 0 ${pos}%)` }}>
+        <img src={after} alt="" className="wipe-img" />
+      </div>
+      <span className="wipe-tag left">{beforeLabel}</span>
+      <span className="wipe-tag right">{afterLabel}</span>
+      <input
+        type="range" min="0" max="100" step="0.1" value={pos}
+        className="wipe-range" aria-label={label}
+        onChange={e => setPos(+e.target.value)} />
+      <div className="wipe-line" style={{ left: pos + "%" }} aria-hidden>
+        <span className="wipe-grip" />
+      </div>
+    </div>
+  );
+}
+
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return (
@@ -285,32 +310,45 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [maxColors,    setMaxColors]    = React.useState(null);
   const [processing,   setProcessing]   = React.useState(false);
   const [errors,       setErrors]       = React.useState([]);
-  const [outBytes,     setOutBytes]     = React.useState(null);
+  const [mode,         setMode]         = React.useState("quality");  // or "size"
+  const [targetNum,    setTargetNum]    = React.useState(500);
+  const [targetUnit,   setTargetUnit]   = React.useState("KB");
+  const [result,       setResult]       = React.useState(null);
 
   const idx          = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
   const fileUrl      = useFileUrl(selectedFile);
 
+  // PNG ignores the quality argument entirely, so there is no knob for a size
+  // search to turn — the mode only makes sense for the lossy formats.
+  const sizeModeAvailable = format !== "PNG";
+  const inSizeMode = mode === "size" && sizeModeAvailable;
+  const targetBytes = inSizeMode ? Math.max(1, targetNum) * (targetUnit === "MB" ? 1e6 : 1e3) : 0;
+
   const totalBefore = selectedFile ? selectedFile.size : 0;
   // Measured on completion. Guessing it from a per-format factor, as this used
   // to, produced a number that was never checked against the real encoder.
-  const totalAfter  = outBytes;
-  const savings     = totalBefore > 0 && outBytes != null
-    ? Math.round((1 - outBytes / totalBefore) * 100) : null;
+  const totalAfter  = result ? result.bytes : null;
+  const savings     = totalBefore > 0 && totalAfter != null
+    ? Math.round((1 - totalAfter / totalBefore) * 100) : null;
 
-  // Any settings change invalidates the last measurement.
-  React.useEffect(() => { setOutBytes(null); },
-    [selectedFile?.id, format, quality, reduceColors, maxColors]);
+  // Any settings change invalidates the last run; drop its preview URL too.
+  React.useEffect(() => { setResult(null); },
+    [selectedFile?.id, format, quality, reduceColors, maxColors, mode, targetNum, targetUnit]);
+  React.useEffect(() => () => { if (result) URL.revokeObjectURL(result.url); }, [result]);
 
   function handleStart() {
     if (!selectedFile) return;
     setProcessing(true);
     setErrors([]);
-    setOutBytes(null);
-    Processor.processCompress([selectedFile], { format, quality, reduceColors, maxColors },
+    setResult(null);
+    Processor.processCompress([selectedFile],
+      { format, quality, reduceColors, maxColors, targetBytes },
       () => {}, (ok, errs, sizes) => {
         setErrors(errs || []);
-        setOutBytes(sizes && sizes.length ? sizes[0].bytes : null);
+        const s = sizes && sizes[0];
+        setResult(s ? { url: URL.createObjectURL(s.blob), bytes: s.bytes,
+                        quality: s.quality, met: s.met } : null);
         setProcessing(false);
       });
   }
@@ -333,10 +371,27 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               background:"var(--surface-1,white)", borderRadius:"var(--radius-lg,12px)",
               border:"1.5px solid var(--line)", padding:10, boxSizing:"border-box",
             }}>
-              {fileUrl
+              {fileUrl && result
+                ? <CompareSlider before={fileUrl} after={result.url}
+                    label={t.compress.compareHint}
+                    beforeLabel={t.compress.before} afterLabel={t.compress.after} />
+                : fileUrl
                 ? <img src={fileUrl} alt="" style={{ maxWidth:"100%", maxHeight:220, objectFit:"contain", display:"block" }} />
                 : selectedFile && <div style={{ width:"70%", maxWidth:320 }}><Thumb palette={selectedFile.palette} /></div>}
             </div>
+            {result && (
+              <div style={{ fontSize:12, color:"var(--ink-3)", textAlign:"center", marginTop:-8, marginBottom:10 }}>
+                {result.met === false
+                  ? t.compress.targetMissed
+                      .replace("{target}", formatBytes(targetBytes))
+                      .replace("{size}", formatBytes(result.bytes))
+                  : inSizeMode
+                  ? t.compress.targetMet
+                      .replace("{size}", formatBytes(result.bytes))
+                      .replace("{q}", result.quality)
+                  : t.compress.compareHint}
+              </div>
+            )}
             <div className="compare">
               <div className="panel">
                 <div className="lab">{t.compress.before}</div>
@@ -347,7 +402,9 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               <div className="panel after">
                 <div className="lab">{t.compress.after}</div>
                 <div className="num">{totalAfter != null ? formatBytes(totalAfter) : "—"}</div>
-                <div className="meta">1 {t.compress.filesSingular} · {format} q{quality}</div>
+                <div className="meta">
+                  1 {t.compress.filesSingular} · {format} q{result ? result.quality : (inSizeMode ? "?" : quality)}
+                </div>
                 <div className="barwrap"><div className="fill" style={{
                   width: totalAfter != null ? Math.max(4, totalAfter / totalBefore * 100) + "%" : "0%" }} /></div>
               </div>
@@ -385,7 +442,21 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           </div>
         </div>
 
-        {format !== "PNG" && (
+        {sizeModeAvailable && (
+          <div className="field">
+            <label>{t.compress.mode}</label>
+            <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr" }}>
+              {[["quality", t.compress.modeQuality], ["size", t.compress.modeSize]].map(([id, name]) => (
+                <button key={id} className={"preset " + (mode === id ? "on" : "")}
+                  onClick={() => setMode(id)}>
+                  <span style={{ textAlign:"center", width:"100%" }}>{name}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {sizeModeAvailable && !inSizeMode && (
           <div className="field">
             <label>
               {t.compress.quality}
@@ -394,6 +465,27 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             <div className="slider-row">
               <input type="range" min="10" max="100" value={quality} onChange={e => setQuality(+e.target.value)} />
             </div>
+          </div>
+        )}
+
+        {inSizeMode && (
+          <div className="field">
+            <label>{t.compress.targetSize}</label>
+            <div style={{ display:"flex", gap:8 }}>
+              <div className="num-input" style={{ flex:1 }}>
+                <input type="text" inputMode="numeric" value={targetNum}
+                  onChange={e => setTargetNum(Math.max(1, +e.target.value.replace(/\D/g, "") || 0))} />
+              </div>
+              <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr", flex:"0 0 110px" }}>
+                {["KB","MB"].map(u => (
+                  <button key={u} className={"preset " + (targetUnit === u ? "on" : "")}
+                    onClick={() => setTargetUnit(u)}>
+                    <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace" }}>{u}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div style={{ marginTop:6, fontSize:11.5, color:"var(--ink-3)" }}>{t.compress.targetHint}</div>
           </div>
         )}
 

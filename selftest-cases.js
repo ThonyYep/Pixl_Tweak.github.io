@@ -384,7 +384,65 @@ function brokenFile() {
     assert(errorMessage(t, {})                        === "unreadable",          "decode case");
   });
 
-  // ponytail: single-file cases only — anything with 2+ files takes the zip
+  // ── Target file size ───────────────────────────────────────────────────
+// A photo-ish source: quality has to actually move the byte count for a
+// search over it to mean anything.
+function busyCanvas(n) {
+  const c = document.createElement("canvas");
+  c.width = c.height = n;
+  const x = c.getContext("2d");
+  const g = x.createLinearGradient(0, 0, n, n);
+  g.addColorStop(0, "#d6336c"); g.addColorStop(.5, "#fab005"); g.addColorStop(1, "#1864ab");
+  x.fillStyle = g; x.fillRect(0, 0, n, n);
+  // deterministic scatter — no Math.random, so the test is repeatable
+  for (let i = 0; i < 900; i++) {
+    const a = (i * 2.399963) % 6.283, r = (i * 37) % n;
+    x.fillStyle = `hsla(${(i * 7) % 360},70%,${30 + i % 50}%,.5)`;
+    x.beginPath();
+    x.arc((Math.cos(a) * r + n) % n, (Math.sin(a) * r + n) % n, 2 + (i % 20), 0, 6.283);
+    x.fill();
+  }
+  return c;
+}
+
+await test("target size lands under the budget, not over it", async () => {
+  const c = busyCanvas(600);
+  for (const target of [300_000, 120_000, 40_000]) {
+    const r = await P.encodeToTargetSize(c, "JPG", target, true);
+    assert(r.met, `reported unreachable at ${target} B`);
+    assert(r.blob.size <= target, `${target} B budget, produced ${r.blob.size} B`);
+  }
+});
+
+await test("target size uses most of the budget rather than undershooting", async () => {
+  const r = await P.encodeToTargetSize(busyCanvas(600), "JPG", 120_000, true);
+  const used = r.blob.size / 120_000;
+  assert(used > 0.85, `only used ${Math.round(used * 100)}% of the budget — search stopped short`);
+});
+
+await test("an unreachable target is reported, not faked", async () => {
+  // 1 KB is below what any JPEG of this image can be.
+  const r = await P.encodeToTargetSize(busyCanvas(600), "JPG", 1000, true);
+  assert(r.met === false, "claimed success on an impossible target");
+  assert(r.blob.size > 1000, "test premise wrong — 1 KB was reachable");
+  assert(r.quality === 10, `fell back at quality ${r.quality}, expected the floor`);
+});
+
+await test("the search converges instead of scanning every quality", async () => {
+  const r = await P.encodeToTargetSize(busyCanvas(400), "JPG", 50_000, true);
+  assert(r.steps <= 8, `took ${r.steps} encodes; binary search over 10..100 needs at most 7`);
+});
+
+await test("higher budgets never produce smaller files", async () => {
+  const c = busyCanvas(500);
+  const small = await P.encodeToTargetSize(c, "JPG", 40_000, true);
+  const big   = await P.encodeToTargetSize(c, "JPG", 200_000, true);
+  assert(big.blob.size >= small.blob.size,
+    `200 KB budget gave ${big.blob.size} B but 40 KB gave ${small.blob.size} B`);
+  assert(big.quality >= small.quality, "a looser budget chose a lower quality");
+});
+
+// ponytail: single-file cases only — anything with 2+ files takes the zip
   // path and would write to the user's Downloads folder mid-test.
 
   const s = document.getElementById("summary");
