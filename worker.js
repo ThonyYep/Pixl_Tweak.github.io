@@ -7,7 +7,9 @@
 
 importScripts("engine.js");
 
-let cancelled = false;
+// Per job, not global. A single shared flag meant any new run reset a pending
+// cancel, and one cancel stopped every job in flight.
+const cancelledJobs = new Set();
 
 // Errors cross the postMessage boundary as codes, not Error objects, because
 // only the message survives structured cloning intact.
@@ -21,14 +23,14 @@ function classify(err) {
 self.onmessage = async (e) => {
   const msg = e.data;
 
-  if (msg.type === "cancel") { cancelled = true; return; }
+  if (msg.type === "cancel") { cancelledJobs.add(msg.jobId); return; }
   if (msg.type !== "run") return;
 
-  cancelled = false;
   const { jobId, op, files, settings } = msg;
+  const stopped = () => cancelledJobs.has(jobId);
 
   for (let i = 0; i < files.length; i++) {
-    if (cancelled) break;
+    if (stopped()) break;
     const file = files[i];
     postMessage({ jobId, type: "progress", fileId: file.id, pct: 5 });
     try {
@@ -36,7 +38,7 @@ self.onmessage = async (e) => {
         postMessage({ jobId, type: "progress", fileId: file.id,
                       pct: Math.min(95, 5 + Math.round(frac * 90)) });
       });
-      if (cancelled) break;
+      if (stopped()) break;
       postMessage({
         jobId, type: "result", fileId: file.id, name: file.name,
         outputs: res.outputs, bytes: res.bytes, quality: res.quality, met: res.met,
@@ -49,5 +51,7 @@ self.onmessage = async (e) => {
     }
   }
 
-  postMessage({ jobId, type: "done", cancelled });
+  const wasCancelled = stopped();
+  cancelledJobs.delete(jobId);
+  postMessage({ jobId, type: "done", cancelled: wasCancelled });
 };

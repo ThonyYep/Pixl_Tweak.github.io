@@ -64,8 +64,9 @@ function doneMessage(t, n, grew, bytes) {
 // Three distinct failures, three distinct messages — "unsupported format" for
 // an image that is simply too big sends the user hunting in the wrong place.
 function errorMessage(t, e) {
-  if (e.tooBig) return t.convert.errTooBig.replace("{dims}", e.tooBig);
-  if (e.fmt)    return t.convert.errFormat.replace("{fmt}", e.fmt);
+  if (e.packaging) return t.convert.errPackaging;
+  if (e.tooBig)    return t.convert.errTooBig.replace("{dims}", e.tooBig);
+  if (e.fmt)       return t.convert.errFormat.replace("{fmt}", e.fmt);
   return t.convert.errRead;
 }
 

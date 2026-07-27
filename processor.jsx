@@ -76,12 +76,28 @@ async function buildPDF(jpegBlobs) {
 // not have to care which happened.
 
 let _jobId = 0;
-let _active = null;
+// A Map, not a single slot: a finished job used to null the slot and turn a
+// later cancel into a silent no-op while another job was still running.
+const _inflight = new Map();
 
+function stop(jobId, discard) {
+  const state = _inflight.get(jobId);
+  if (!state) return;
+  state.cancelled = true;
+  state.discard = discard;
+  if (CAN_OFFLOAD) worker().postMessage({ type: "cancel", jobId });
+}
+
+// What the Cancel buttons call: stop everything still running, and keep the
+// files that already finished — the user asked to stop, not to undo.
 function cancelJob() {
-  if (!_active) return;
-  _active.cancelled = true;
-  if (CAN_OFFLOAD) worker().postMessage({ type: "cancel" });
+  for (const jobId of _inflight.keys()) stop(jobId, false);
+}
+
+// Starting a tool supersedes whatever the last one was doing. Its partial
+// output is dropped rather than downloaded, because nobody asked for it.
+function supersede() {
+  for (const jobId of _inflight.keys()) stop(jobId, true);
 }
 
 function toPayload(files) {
@@ -93,46 +109,65 @@ function toPayload(files) {
 // zipping when there is more than one output, and the download itself.
 async function finish(op, settings, results, errors, cancelled, onDone) {
   const sizes = [];
-  let entries = [];
+  const entries = [];
+  const failures = errors.slice();
 
-  const pdfSources = results.flatMap(r => r.outputs.filter(o => o.pdfSource));
-  if (pdfSources.length && settings.mergePDF && results.length > 1) {
-    const merged = await buildPDF(pdfSources.map(o => o.blob));
-    if (merged) { downloadBlob(merged, "merged.pdf"); sizes.push({ id: null, bytes: merged.size }); }
-  } else {
-    for (const r of results) {
-      let outs = r.outputs;
-      if (outs.some(o => o.pdfSource)) {
-        const pdf = await buildPDF(outs.map(o => o.blob));
-        outs = [{ path: outs[0].path, blob: pdf }];
+  // Everything in here can throw — JSZip or jsPDF missing, a zip too big to
+  // build. If it does, the caller still has to hear back: an onDone that never
+  // fires leaves the UI spinning on a job that is already over.
+  try {
+    const pdfSources = results.flatMap(r => r.outputs.filter(o => o.pdfSource));
+    if (pdfSources.length && settings.mergePDF && results.length > 1) {
+      const merged = await buildPDF(pdfSources.map(o => o.blob));
+      if (merged) { downloadBlob(merged, "merged.pdf"); sizes.push({ id: null, bytes: merged.size }); }
+    } else {
+      for (const r of results) {
+        let outs = r.outputs;
+        if (outs.some(o => o.pdfSource)) {
+          const pdf = await buildPDF(outs.map(o => o.blob));
+          outs = [{ path: outs[0].path, blob: pdf }];
+        }
+        entries.push(...outs);
+        sizes.push({ id: r.fileId, bytes: outs.reduce((a, o) => a + o.blob.size, 0),
+                     quality: r.quality, met: r.met, blob: outs[0].blob });
       }
-      entries.push(...outs);
-      sizes.push({ id: r.fileId, bytes: outs.reduce((a, o) => a + o.blob.size, 0),
-                   quality: r.quality, met: r.met, blob: outs[0].blob });
     }
+
+    if (entries.length === 1) {
+      downloadBlob(entries[0].blob, entries[0].path);
+    } else if (entries.length > 1) {
+      const single = results.length === 1;
+      await downloadZip(entries, single
+        ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip"
+        : ZIP_NAME[op] || "pixl-tweak-export.zip");
+    }
+  } catch (err) {
+    console.error("packaging the results failed:", err);
+    failures.push({ id: null, name: null, fmt: null, tooBig: null, packaging: true });
   }
 
-  if (entries.length === 1) {
-    downloadBlob(entries[0].blob, entries[0].path);
-  } else if (entries.length > 1) {
-    const single = results.length === 1;
-    await downloadZip(entries, single
-      ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip"
-      : ZIP_NAME[op] || "pixl-tweak-export.zip");
-  }
-  onDone(errors.length === 0 && !cancelled, errors, sizes, cancelled);
+  onDone(failures.length === 0 && !cancelled, failures, sizes, cancelled);
 }
 
 const ZIP_NAME = { convert: "pixl-tweak-export.zip", resize: "pixl-tweak-resized.zip",
                    compress: "pixl-tweak-compressed.zip", crop: "pixl-tweak-cropped.zip" };
 
 function runJob(op, files, settings, onProgress, onDone) {
+  supersede();                       // one tool at a time
   const jobId = ++_jobId;
-  const state = { cancelled: false };
-  _active = state;
+  const state = { cancelled: false, discard: false };
+  _inflight.set(jobId, state);
   const results = [], errors = [];
 
   const report = (fileId, pct, st) => { if (!state.cancelled) onProgress(fileId, pct, st); };
+
+  // A superseded job hands back nothing: no downloads, no callback. The user
+  // moved on, so its half-finished output is not something they asked for.
+  const settle = async () => {
+    _inflight.delete(jobId);
+    if (state.discard) return;
+    await finish(op, settings, results, errors, state.cancelled, onDone);
+  };
 
   if (!CAN_OFFLOAD) {
     // No worker: same engine, same order, just on this thread.
@@ -149,8 +184,7 @@ function runJob(op, files, settings, onProgress, onDone) {
           report(f.id, 100, "error");
         }
       }
-      await finish(op, settings, results, errors, state.cancelled, onDone);
-      _active = null;
+      await settle();
     })();
     return;
   }
@@ -164,8 +198,8 @@ function runJob(op, files, settings, onProgress, onDone) {
     else if (m.type === "failed") errors.push({ id: m.fileId, name: m.name, fmt: m.fmt, tooBig: m.tooBig });
     else if (m.type === "done") {
       w.removeEventListener("message", onMsg);
-      await finish(op, settings, results, errors, m.cancelled, onDone);
-      _active = null;
+      state.cancelled = state.cancelled || m.cancelled;
+      await settle();
     }
   };
   w.addEventListener("message", onMsg);

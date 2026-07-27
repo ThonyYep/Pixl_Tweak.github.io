@@ -457,6 +457,72 @@ await test("higher budgets never produce smaller files", async () => {
   assert(big.quality >= small.quality, "a looser budget chose a lower quality");
 });
 
+// ── Job isolation ──────────────────────────────────────────────────────
+// Jobs can overlap: a long Convert keeps running when the user switches tool.
+// Both of these were broken — cancel tracked one job in a single slot, and the
+// worker shared one cancelled flag across every run.
+// Real PNG bytes, and big enough that the batch takes long enough to cancel
+// mid-flight. toDataURL here would hand File a string, every decode would fail
+// instantly, and the job would be over before the cancel landed.
+async function jobFiles(n, size = 900) {
+  const out = [];
+  for (let i = 0; i < n; i++) {
+    const c = document.createElement("canvas");
+    c.width = c.height = size;
+    const x = c.getContext("2d");
+    const g = x.createLinearGradient(0, 0, size, size);
+    g.addColorStop(0, `hsl(${i * 37 % 360},70%,50%)`);
+    g.addColorStop(1, "#1864ab");
+    x.fillStyle = g; x.fillRect(0, 0, size, size);
+    for (let k = 0; k < 400; k++) {
+      x.fillStyle = `hsla(${(k * 11) % 360},70%,50%,.5)`;
+      x.beginPath(); x.arc((k * 97) % size, (k * 211) % size, 3 + (k % 18), 0, 6.283); x.fill();
+    }
+    const blob = await new Promise(r => c.toBlob(r, "image/png"));
+    out.push({ id: "j" + i, name: "j" + i + ".png", w: size, h: size,
+               fileObj: new File([blob], "j" + i + ".png", { type: "image/png" }) });
+  }
+  return out;
+}
+
+// Downloads would land in the user's folder mid-test, so they are swallowed.
+async function withoutDownloads(fn) {
+  const orig = HTMLAnchorElement.prototype.click;
+  HTMLAnchorElement.prototype.click = function () {
+    if (this.download) return;
+    return orig.call(this);
+  };
+  try { return await fn(); } finally { HTMLAnchorElement.prototype.click = orig; }
+}
+
+await test("cancel still works after an earlier job has finished", async () => {
+  await withoutDownloads(async () => {
+    const files = await jobFiles(10);
+    // Finishing this used to clear the single active-job slot.
+    await new Promise(r => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {}, () => r()));
+    const long = new Promise(r => P.processConvert(files, { format: "JPG", quality: 88 },
+      () => {}, (ok, e, s, cancelled) => r({ done: s.length, cancelled })));
+    await new Promise(r => setTimeout(r, 250));
+    P.cancelJob();
+    const res = await long;
+    assert(res.cancelled === true, "cancel was a no-op — the earlier job cleared the slot");
+    assert(res.done < files.length, `all ${files.length} files ran anyway`);
+  });
+});
+
+await test("starting a tool discards the previous job instead of dumping it", async () => {
+  await withoutDownloads(async () => {
+    const files = await jobFiles(10);
+    let firstCalledBack = false;
+    P.processConvert(files, { format: "JPG", quality: 88 }, () => {}, () => { firstCalledBack = true; });
+    await new Promise(r => setTimeout(r, 250));
+    await new Promise(r => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {}, () => r()));
+    await new Promise(r => setTimeout(r, 400));
+    assert(!firstCalledBack,
+      "the superseded job still reported back, so its partial output was downloaded");
+  });
+});
+
 // ── Colour depth reduction says what it does ───────────────────────────
 await test("depth reduction hits the advertised levels per channel", async () => {
   const c = busyCanvas(300);

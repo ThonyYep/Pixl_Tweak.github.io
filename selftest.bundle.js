@@ -64,11 +64,19 @@ async function buildPDF(jpegBlobs) {
   return pdf ? pdf.output("blob") : null;
 }
 let _jobId = 0;
-let _active = null;
+const _inflight = /* @__PURE__ */ new Map();
+function stop(jobId, discard) {
+  const state = _inflight.get(jobId);
+  if (!state) return;
+  state.cancelled = true;
+  state.discard = discard;
+  if (CAN_OFFLOAD) worker().postMessage({ type: "cancel", jobId });
+}
 function cancelJob() {
-  if (!_active) return;
-  _active.cancelled = true;
-  if (CAN_OFFLOAD) worker().postMessage({ type: "cancel" });
+  for (const jobId of _inflight.keys()) stop(jobId, false);
+}
+function supersede() {
+  for (const jobId of _inflight.keys()) stop(jobId, true);
 }
 function toPayload(files) {
   return files.map((f) => ({
@@ -82,38 +90,44 @@ function toPayload(files) {
 }
 async function finish(op, settings, results, errors, cancelled, onDone) {
   const sizes = [];
-  let entries = [];
-  const pdfSources = results.flatMap((r) => r.outputs.filter((o) => o.pdfSource));
-  if (pdfSources.length && settings.mergePDF && results.length > 1) {
-    const merged = await buildPDF(pdfSources.map((o) => o.blob));
-    if (merged) {
-      downloadBlob(merged, "merged.pdf");
-      sizes.push({ id: null, bytes: merged.size });
-    }
-  } else {
-    for (const r of results) {
-      let outs = r.outputs;
-      if (outs.some((o) => o.pdfSource)) {
-        const pdf = await buildPDF(outs.map((o) => o.blob));
-        outs = [{ path: outs[0].path, blob: pdf }];
+  const entries = [];
+  const failures = errors.slice();
+  try {
+    const pdfSources = results.flatMap((r) => r.outputs.filter((o) => o.pdfSource));
+    if (pdfSources.length && settings.mergePDF && results.length > 1) {
+      const merged = await buildPDF(pdfSources.map((o) => o.blob));
+      if (merged) {
+        downloadBlob(merged, "merged.pdf");
+        sizes.push({ id: null, bytes: merged.size });
       }
-      entries.push(...outs);
-      sizes.push({
-        id: r.fileId,
-        bytes: outs.reduce((a, o) => a + o.blob.size, 0),
-        quality: r.quality,
-        met: r.met,
-        blob: outs[0].blob
-      });
+    } else {
+      for (const r of results) {
+        let outs = r.outputs;
+        if (outs.some((o) => o.pdfSource)) {
+          const pdf = await buildPDF(outs.map((o) => o.blob));
+          outs = [{ path: outs[0].path, blob: pdf }];
+        }
+        entries.push(...outs);
+        sizes.push({
+          id: r.fileId,
+          bytes: outs.reduce((a, o) => a + o.blob.size, 0),
+          quality: r.quality,
+          met: r.met,
+          blob: outs[0].blob
+        });
+      }
     }
+    if (entries.length === 1) {
+      downloadBlob(entries[0].blob, entries[0].path);
+    } else if (entries.length > 1) {
+      const single = results.length === 1;
+      await downloadZip(entries, single ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip" : ZIP_NAME[op] || "pixl-tweak-export.zip");
+    }
+  } catch (err) {
+    console.error("packaging the results failed:", err);
+    failures.push({ id: null, name: null, fmt: null, tooBig: null, packaging: true });
   }
-  if (entries.length === 1) {
-    downloadBlob(entries[0].blob, entries[0].path);
-  } else if (entries.length > 1) {
-    const single = results.length === 1;
-    await downloadZip(entries, single ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip" : ZIP_NAME[op] || "pixl-tweak-export.zip");
-  }
-  onDone(errors.length === 0 && !cancelled, errors, sizes, cancelled);
+  onDone(failures.length === 0 && !cancelled, failures, sizes, cancelled);
 }
 const ZIP_NAME = {
   convert: "pixl-tweak-export.zip",
@@ -122,12 +136,18 @@ const ZIP_NAME = {
   crop: "pixl-tweak-cropped.zip"
 };
 function runJob(op, files, settings, onProgress, onDone) {
+  supersede();
   const jobId = ++_jobId;
-  const state = { cancelled: false };
-  _active = state;
+  const state = { cancelled: false, discard: false };
+  _inflight.set(jobId, state);
   const results = [], errors = [];
   const report = (fileId, pct, st) => {
     if (!state.cancelled) onProgress(fileId, pct, st);
+  };
+  const settle = async () => {
+    _inflight.delete(jobId);
+    if (state.discard) return;
+    await finish(op, settings, results, errors, state.cancelled, onDone);
   };
   if (!CAN_OFFLOAD) {
     (async () => {
@@ -143,8 +163,7 @@ function runJob(op, files, settings, onProgress, onDone) {
           report(f.id, 100, "error");
         }
       }
-      await finish(op, settings, results, errors, state.cancelled, onDone);
-      _active = null;
+      await settle();
     })();
     return;
   }
@@ -157,8 +176,8 @@ function runJob(op, files, settings, onProgress, onDone) {
     else if (m.type === "failed") errors.push({ id: m.fileId, name: m.name, fmt: m.fmt, tooBig: m.tooBig });
     else if (m.type === "done") {
       w.removeEventListener("message", onMsg);
-      await finish(op, settings, results, errors, m.cancelled, onDone);
-      _active = null;
+      state.cancelled = state.cancelled || m.cancelled;
+      await settle();
     }
   };
   w.addEventListener("message", onMsg);
@@ -240,6 +259,7 @@ function doneMessage(t, n, grew, bytes) {
   return t.convert[key].replace("{n}", n).replace(grew ? "{grew}" : "{saved}", formatBytes(bytes));
 }
 function errorMessage(t, e) {
+  if (e.packaging) return t.convert.errPackaging;
   if (e.tooBig) return t.convert.errTooBig.replace("{dims}", e.tooBig);
   if (e.fmt) return t.convert.errFormat.replace("{fmt}", e.fmt);
   return t.convert.errRead;
@@ -947,6 +967,83 @@ function brokenFile() {
       `200 KB budget gave ${big.blob.size} B but 40 KB gave ${small.blob.size} B`
     );
     assert(big.quality >= small.quality, "a looser budget chose a lower quality");
+  });
+  async function jobFiles(n, size = 900) {
+    const out2 = [];
+    for (let i = 0; i < n; i++) {
+      const c = document.createElement("canvas");
+      c.width = c.height = size;
+      const x = c.getContext("2d");
+      const g = x.createLinearGradient(0, 0, size, size);
+      g.addColorStop(0, `hsl(${i * 37 % 360},70%,50%)`);
+      g.addColorStop(1, "#1864ab");
+      x.fillStyle = g;
+      x.fillRect(0, 0, size, size);
+      for (let k = 0; k < 400; k++) {
+        x.fillStyle = `hsla(${k * 11 % 360},70%,50%,.5)`;
+        x.beginPath();
+        x.arc(k * 97 % size, k * 211 % size, 3 + k % 18, 0, 6.283);
+        x.fill();
+      }
+      const blob = await new Promise((r) => c.toBlob(r, "image/png"));
+      out2.push({
+        id: "j" + i,
+        name: "j" + i + ".png",
+        w: size,
+        h: size,
+        fileObj: new File([blob], "j" + i + ".png", { type: "image/png" })
+      });
+    }
+    return out2;
+  }
+  async function withoutDownloads(fn) {
+    const orig = HTMLAnchorElement.prototype.click;
+    HTMLAnchorElement.prototype.click = function() {
+      if (this.download) return;
+      return orig.call(this);
+    };
+    try {
+      return await fn();
+    } finally {
+      HTMLAnchorElement.prototype.click = orig;
+    }
+  }
+  await test("cancel still works after an earlier job has finished", async () => {
+    await withoutDownloads(async () => {
+      const files = await jobFiles(10);
+      await new Promise((r) => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {
+      }, () => r()));
+      const long = new Promise((r) => P.processConvert(
+        files,
+        { format: "JPG", quality: 88 },
+        () => {
+        },
+        (ok, e, s2, cancelled) => r({ done: s2.length, cancelled })
+      ));
+      await new Promise((r) => setTimeout(r, 250));
+      P.cancelJob();
+      const res = await long;
+      assert(res.cancelled === true, "cancel was a no-op \u2014 the earlier job cleared the slot");
+      assert(res.done < files.length, `all ${files.length} files ran anyway`);
+    });
+  });
+  await test("starting a tool discards the previous job instead of dumping it", async () => {
+    await withoutDownloads(async () => {
+      const files = await jobFiles(10);
+      let firstCalledBack = false;
+      P.processConvert(files, { format: "JPG", quality: 88 }, () => {
+      }, () => {
+        firstCalledBack = true;
+      });
+      await new Promise((r) => setTimeout(r, 250));
+      await new Promise((r) => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {
+      }, () => r()));
+      await new Promise((r) => setTimeout(r, 400));
+      assert(
+        !firstCalledBack,
+        "the superseded job still reported back, so its partial output was downloaded"
+      );
+    });
   });
   await test("depth reduction hits the advertised levels per channel", async () => {
     const c = busyCanvas(300);
