@@ -1,12 +1,11 @@
 // app.jsx — main shell
 
 // The last two values from the prototyping host's tweak panel that CSS still
-// reads at runtime. Tone, density and typeface used to be attributes with one
-// reachable value each, so their rules now sit in styles.css unconditionally.
+// reads at runtime. Tone, density, typeface and animation speed used to be
+// adjustable; their rules now sit in styles.css with the values baked in.
 const LOOK = {
   accent: "#6aa3ff",
   radius: 18,
-  motion: 1,
 };
 
 function Tabs({ t, value, onChange, fileCount }) {
@@ -263,7 +262,6 @@ function App() {
     root.style.setProperty("--radius-lg", LOOK.radius * 1.4 + "px");
     root.style.setProperty("--radius",    LOOK.radius + "px");
     root.style.setProperty("--radius-sm", Math.max(6, LOOK.radius * .55) + "px");
-    root.style.setProperty("--motion",    LOOK.motion);
   }, []);
 
   // The only thing the user can actually switch.

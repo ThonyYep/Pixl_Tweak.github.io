@@ -41,7 +41,6 @@
   --gap: 10px;
 
   /* motion */
-  --motion: 1;
   --spring: cubic-bezier(.32, 1.6, .42, 1);
   --ease: cubic-bezier(.2, .8, .2, 1);
 }
@@ -286,7 +285,7 @@ body::before {
   transition: transform .2s var(--spring), background .2s var(--ease), color .2s var(--ease);
 }
 .iconbtn:hover {
-  transform: calc(var(--motion) * 1) translateY(-1px);
+  transform: translateY(-1px);
   color: var(--coral-ink);
   background: var(--tint-2);
 }
@@ -388,7 +387,7 @@ body::before {
   background:
     radial-gradient(60% 80% at 50% 0%, var(--coral-soft), transparent 70%),
     var(--surface);
-  transform: translateY(calc(var(--motion) * -2px));
+  transform: translateY(-2px);
 }
 
 .dropzone .uploader {
@@ -406,7 +405,7 @@ body::before {
   background: conic-gradient(from 0deg, var(--coral), var(--butter), var(--sage), var(--sky), var(--coral));
   filter: blur(10px);
   opacity: .55;
-  animation: spin calc(14s / var(--motion, 1)) linear infinite;
+  animation: spin 14s linear infinite;
 }
 .dropzone .uploader .disk {
   position: relative;
@@ -421,11 +420,11 @@ body::before {
   color: var(--coral);
 }
 .dropzone .uploader .disk .arrow {
-  animation: bobble calc(3.2s / var(--motion, 1)) ease-in-out infinite;
+  animation: bobble 3.2s ease-in-out infinite;
 }
 @keyframes bobble {
   0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(calc(var(--motion) * -4px)); }
+  50% { transform: translateY(-4px); }
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
@@ -468,7 +467,7 @@ body::before {
   transition: transform .18s var(--spring), box-shadow .18s var(--ease), background .18s var(--ease);
   box-shadow: 0 1px 0 rgba(255,255,255,.2) inset, 0 4px 10px -4px rgba(0,0,0,.2);
 }
-.btn:hover { transform: translateY(calc(var(--motion) * -1px)); }
+.btn:hover { transform: translateY(-1px); }
 .btn:active { transform: translateY(0); }
 .btn.primary {
   background: linear-gradient(180deg,
@@ -528,7 +527,7 @@ body::before {
 .formats .fmt:hover {
   color: var(--coral-ink);
   background: var(--coral-soft);
-  transform: translateY(calc(var(--motion) * -2px));
+  transform: translateY(-2px);
 }
 
 /* ─── confetti particles in dropzone ───────────────────────────── */
@@ -543,7 +542,7 @@ body::before {
   position: absolute;
   border-radius: 4px;
   opacity: 0;
-  animation: float calc(8s / var(--motion, 1)) ease-in-out infinite;
+  animation: float 8s ease-in-out infinite;
 }
 @keyframes float {
   0%   { transform: translate(0, 30px) rotate(0deg); opacity: 0; }
@@ -761,7 +760,7 @@ body::before {
   letter-spacing: .03em;
 }
 .fmt-grid .opt:hover {
-  transform: translateY(calc(var(--motion) * -1px));
+  transform: translateY(-1px);
   border-color: color-mix(in oklab, var(--coral), var(--tint-line) 60%);
   color: var(--ink);
 }
@@ -772,7 +771,7 @@ body::before {
   color: white;
   border-color: transparent;
   box-shadow: 0 6px 14px -4px color-mix(in oklab, var(--coral), transparent 50%);
-  transform: translateY(calc(var(--motion) * -1px));
+  transform: translateY(-1px);
 }
 
 .slider-row {
@@ -974,7 +973,7 @@ body::before {
   border-radius: 50%;
   border: 3px solid rgba(176,66,34,.2);
   border-top-color: var(--coral);
-  animation: spin calc(.9s / var(--motion, 1)) linear infinite;
+  animation: spin .9s linear infinite;
   flex-shrink: 0;
 }
 .banner .text {
@@ -1003,7 +1002,7 @@ body::before {
   position: absolute;
   inset: 0;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.5), transparent);
-  animation: shimmer calc(1.4s / var(--motion, 1)) linear infinite;
+  animation: shimmer 1.4s linear infinite;
 }
 @keyframes shimmer {
   0%   { transform: translateX(-100%); }
@@ -1128,7 +1127,7 @@ body::before {
   text-align: left;
   transition: all .2s var(--spring);
 }
-.preset:hover { transform: translateY(calc(var(--motion) * -1px)); border-color: color-mix(in oklab, var(--coral), var(--tint-line) 60%); color: var(--ink); }
+.preset:hover { transform: translateY(-1px); border-color: color-mix(in oklab, var(--coral), var(--tint-line) 60%); color: var(--ink); }
 .preset.on { background: var(--coral-soft); color: var(--coral-ink); border-color: transparent; }
 .preset .swatch {
   width: 22px;
