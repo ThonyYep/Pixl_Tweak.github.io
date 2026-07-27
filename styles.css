@@ -1281,6 +1281,25 @@ body::before {
   100% { box-shadow: 0 0 0 0 rgba(111,198,160,0); }
 }
 
+/* ─── keyboard focus ────────────────────────────────────────────────
+   One visible ring for everything focusable. Only the switches and the wipe
+   had one before, so tabbing through the rest was invisible. :focus-visible
+   means pointer users never see it. */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+.tab:focus-visible, .lang button:focus-visible { outline-offset: -2px; }
+
+/* ─── grew instead of shrank ────────────────────────────────────── */
+.summary-pill.grew { background: color-mix(in oklab, #e5484d, var(--surface) 78%); color: #e5484d; }
+.summary-bar-fill.grew { background: #e5484d; }
+
 /* ─── before/after wipe ─────────────────────────────────────────── */
 .wipe { position: relative; display: grid; place-items: center; width: 100%; }
 .wipe-img { max-width: 100%; max-height: 220px; object-fit: contain; display: block; }

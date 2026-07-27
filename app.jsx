@@ -417,5 +417,13 @@ function App() {
   );
 }
 
+// The footer says "works offline"; this is what makes that true. Failing to
+// register is not worth breaking the page over — it only costs offline use.
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  });
+}
+
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(<App />);

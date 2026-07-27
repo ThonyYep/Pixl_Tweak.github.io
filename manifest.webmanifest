@@ -1,0 +1,18 @@
+{
+  "name": "Pixl Tweak",
+  "short_name": "Pixl Tweak",
+  "description": "Convert, resize, compress and crop images — free, offline, in your browser.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fbf7ef",
+  "theme_color": "#6aa3ff",
+  "icons": [
+    {
+      "src": "Pixl Tweak.png",
+      "sizes": "2048x2048",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}

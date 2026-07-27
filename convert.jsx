@@ -49,6 +49,15 @@ function ToggleRow({ label, on, onChange }) {
   );
 }
 
+// Spanish needs the verb to agree, not just the noun, so one file gets its own
+// sentence rather than "Se convirtieron 1 imágenes".
+function doneMessage(t, n, grew, bytes) {
+  const key = (grew ? "doneGrewSub" : "doneSub") + (n === 1 ? "One" : "");
+  return t.convert[key]
+    .replace("{n}", n)
+    .replace(grew ? "{grew}" : "{saved}", formatBytes(bytes));
+}
+
 // Three distinct failures, three distinct messages — "unsupported format" for
 // an image that is simply too big sends the user hunting in the wrong place.
 function errorMessage(t, e) {
@@ -189,9 +198,14 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const totalOut  = (results || []).reduce((a, s) => a + s.bytes, 0);
   const failedIds = new Set(errors.map(e => e.id));
   const inputDone = files.filter(f => !failedIds.has(f.id)).reduce((a, f) => a + f.size, 0);
-  const saved     = Math.max(0, inputDone - totalOut);
+  // Signed on purpose. Clamping this to zero meant a PNG-to-BMP run that grew
+  // 355 KB into 1.9 MB reported "saved 0 KB" — the one number the user came
+  // for, hidden exactly when it mattered.
+  const delta     = inputDone - totalOut;
+  const grew      = delta < 0;
   const reductionPct = inputDone > 0 ? Math.round((1 - totalOut / inputDone) * 100) : 0;
-  const [headNum, headUnit] = formatBytes(results ? saved : totalSize).split(" ");
+  const [headNum, headUnit] = formatBytes(results ? Math.abs(delta) : totalSize).split(" ");
+  const saved     = Math.max(0, delta);
   const overall   = files.length
     ? (completed * 100 + (Object.values(progress).find(p => p.state === "going")?.v || 0)) / files.length
     : 0;
@@ -248,7 +262,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
                   ? t.convert.cancelled.replace("{n}", (outSizes || []).length).replace("{total}", files.length)
                   : errors.length > 0
                   ? t.convert.failSub.replace("{n}", errors.length).replace("{total}", files.length)
-                  : t.convert.doneSub.replace("{n}", files.length - errors.length).replace("{saved}", formatBytes(saved))}
+                  : doneMessage(t, files.length - errors.length, grew, grew ? -delta : saved)}
               </div>
             </div>
             <button className="btn ghost" onClick={() => setMode("idle")}>
@@ -434,15 +448,22 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         {/* Summary card — queue size before, measured savings after */}
         <div className="summary">
           <div className="summary-top">
-            <span className="lab">{results ? t.convert.total : t.convert.queued}</span>
-            {results && <span className="summary-pill">−{reductionPct}%</span>}
+            <span className="lab">
+              {!results ? t.convert.queued : grew ? t.convert.totalGrew : t.convert.total}
+            </span>
+            {results && (
+              <span className={"summary-pill" + (grew ? " grew" : "")}>
+                {grew ? "+" : "−"}{Math.abs(reductionPct)}%
+              </span>
+            )}
           </div>
           <div className="summary-num" style={{ fontFamily: "Fraunces" }}>
-            {headNum}<span className="unit">{headUnit}</span>
+            {grew ? "+" : ""}{headNum}<span className="unit">{headUnit}</span>
           </div>
           {results && (
             <div className="summary-bar">
-              <div className="summary-bar-fill" style={{ width: Math.max(0, reductionPct) + "%" }} />
+              <div className={"summary-bar-fill" + (grew ? " grew" : "")}
+                style={{ width: Math.min(100, Math.abs(reductionPct)) + "%" }} />
             </div>
           )}
           <div className="summary-foot">
