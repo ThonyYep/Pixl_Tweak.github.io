@@ -18,7 +18,13 @@ function worker() {
   if (!_worker) {
     try {
       _worker = new Worker("worker.js");
-      _worker.addEventListener("error", () => { _workerBroken = true; });
+      // A worker that dies mid-job never posts "done", so every job waiting on
+      // it has to be told, or they wait forever.
+      _worker.addEventListener("error", (err) => {
+        console.error("worker died:", err && err.message);
+        _workerBroken = true;
+        for (const state of [..._inflight.values()]) if (state.abort) state.abort();
+      });
     } catch (err) {
       console.error("worker unavailable, falling back to the main thread:", err);
       _workerBroken = true;
@@ -62,10 +68,15 @@ async function downloadZip(entries, zipName) {
 
 // ── PDF: jsPDF needs the DOM, so the worker hands back JPEGs and the pages
 //    get assembled here.
-const blobToDataURL = blob => new Promise(res => {
+// Every branch settles. Without onerror this was the one promise in the
+// codebase that could hang: a FileReader failure on the PDF path left the job
+// waiting forever, and a hang is not something finish()'s try/catch can see.
+const blobToDataURL = blob => new Promise((resolve, reject) => {
   const r = new FileReader();
-  r.onload = () => res(r.result);
-  r.readAsDataURL(blob);
+  r.onload  = () => resolve(r.result);
+  r.onerror = () => reject(r.error || new Error("FileReader failed"));
+  r.onabort = () => reject(new Error("FileReader aborted"));
+  try { r.readAsDataURL(blob); } catch (err) { reject(err); }
 });
 
 async function buildPDF(jpegBlobs) {
@@ -205,6 +216,18 @@ function runJob(op, files, settings, onProgress, onDone) {
 
   const w = CAN_OFFLOAD ? worker() : null;
   if (!w) { runInline(); return; }
+
+  // Called if the worker dies before it reports back — a failed script load is
+  // the likely one. If it produced nothing there is nothing to lose, so just
+  // do the job here instead. If it was partway through, report rather than
+  // redo the finished files.
+  state.abort = () => {
+    w.removeEventListener("message", onMsg);
+    if (results.length === 0) { runInline(); return; }
+    errors.push({ id: null, name: null, fmt: null, tooBig: null, packaging: true });
+    settle();
+  };
+
   const onMsg = async (e) => {
     const m = e.data;
     if (m.jobId !== jobId) return;

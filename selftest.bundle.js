@@ -7,8 +7,10 @@ function worker() {
   if (!_worker) {
     try {
       _worker = new Worker("worker.js");
-      _worker.addEventListener("error", () => {
+      _worker.addEventListener("error", (err) => {
+        console.error("worker died:", err && err.message);
         _workerBroken = true;
+        for (const state of [..._inflight.values()]) if (state.abort) state.abort();
       });
     } catch (err) {
       console.error("worker unavailable, falling back to the main thread:", err);
@@ -54,10 +56,16 @@ async function downloadZip(entries, zipName) {
   for (const { path, blob } of entries) zip.file(path, blob);
   downloadBlob(await zip.generateAsync({ type: "blob", compression: "DEFLATE" }), zipName);
 }
-const blobToDataURL = (blob) => new Promise((res) => {
+const blobToDataURL = (blob) => new Promise((resolve, reject) => {
   const r = new FileReader();
-  r.onload = () => res(r.result);
-  r.readAsDataURL(blob);
+  r.onload = () => resolve(r.result);
+  r.onerror = () => reject(r.error || new Error("FileReader failed"));
+  r.onabort = () => reject(new Error("FileReader aborted"));
+  try {
+    r.readAsDataURL(blob);
+  } catch (err) {
+    reject(err);
+  }
 });
 async function buildPDF(jpegBlobs) {
   if (!window.jspdf) throw new Error("jsPDF not loaded");
@@ -184,6 +192,15 @@ function runJob(op, files, settings, onProgress, onDone) {
     runInline();
     return;
   }
+  state.abort = () => {
+    w.removeEventListener("message", onMsg);
+    if (results.length === 0) {
+      runInline();
+      return;
+    }
+    errors.push({ id: null, name: null, fmt: null, tooBig: null, packaging: true });
+    settle();
+  };
   const onMsg = async (e) => {
     const m = e.data;
     if (m.jobId !== jobId) return;

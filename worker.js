@@ -29,6 +29,10 @@ self.onmessage = async (e) => {
   const { jobId, op, files, settings } = msg;
   const stopped = () => cancelledJobs.has(jobId);
 
+  // The whole loop sits in a try so "done" is posted no matter what. Anything
+  // thrown out here — a malformed payload, a postMessage that will not clone —
+  // would otherwise leave the main thread waiting on a job that is over.
+  try {
   for (let i = 0; i < files.length; i++) {
     if (stopped()) break;
     const file = files[i];
@@ -49,6 +53,10 @@ self.onmessage = async (e) => {
                     ...classify(err), detail: String(err && err.message || err) });
       postMessage({ jobId, type: "progress", fileId: file.id, pct: 100, state: "error" });
     }
+  }
+  } catch (err) {
+    postMessage({ jobId, type: "failed", fileId: null, name: null,
+                  fmt: null, tooBig: null, detail: String(err && err.message || err) });
   }
 
   const wasCancelled = stopped();
