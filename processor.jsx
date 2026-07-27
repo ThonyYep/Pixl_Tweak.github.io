@@ -8,8 +8,23 @@
 const CAN_OFFLOAD = typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined";
 
 let _worker = null;
+let _workerBroken = false;
+
+// Returns null rather than throwing. A worker can fail to start for reasons
+// that have nothing to do with support — a CSP that forbids workers, for one —
+// and a throw in here used to leave the job hanging with no way to finish.
 function worker() {
-  if (!_worker) _worker = new Worker("worker.js");
+  if (_workerBroken) return null;
+  if (!_worker) {
+    try {
+      _worker = new Worker("worker.js");
+      _worker.addEventListener("error", () => { _workerBroken = true; });
+    } catch (err) {
+      console.error("worker unavailable, falling back to the main thread:", err);
+      _workerBroken = true;
+      return null;
+    }
+  }
   return _worker;
 }
 
@@ -169,8 +184,8 @@ function runJob(op, files, settings, onProgress, onDone) {
     await finish(op, settings, results, errors, state.cancelled, onDone);
   };
 
-  if (!CAN_OFFLOAD) {
-    // No worker: same engine, same order, just on this thread.
+  const runInline = () => {
+    // Same engine, same order, just on this thread.
     (async () => {
       for (const f of toPayload(files)) {
         if (state.cancelled) break;
@@ -186,10 +201,10 @@ function runJob(op, files, settings, onProgress, onDone) {
       }
       await settle();
     })();
-    return;
-  }
+  };
 
-  const w = worker();
+  const w = CAN_OFFLOAD ? worker() : null;
+  if (!w) { runInline(); return; }
   const onMsg = async (e) => {
     const m = e.data;
     if (m.jobId !== jobId) return;

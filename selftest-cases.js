@@ -544,6 +544,36 @@ await test("a queue is dispatched once, not once per remount", async () => {
   });
 });
 
+// ── The no-OffscreenCanvas fallback is real ────────────────────────────
+// Safari only got OffscreenCanvas in 16.4. processor.jsx claims those
+// browsers run the same engine inline; they did not — makeCanvas called
+// `new OffscreenCanvas` unconditionally and every operation threw.
+await test("the whole pipeline works without OffscreenCanvas", async () => {
+  const real = window.OffscreenCanvas;
+  delete window.OffscreenCanvas;
+  try {
+    assert(typeof OffscreenCanvas === "undefined", "could not simulate its absence");
+
+    const src = solidCanvas(120, 80);
+    const resized = P.resizeCanvas(src, 60, 40, 2);
+    assert(resized.width === 60 && resized.height === 40,
+      `resize gave ${resized.width}x${resized.height}`);
+
+    const png = await P.canvasToBlob(resized, "PNG", 100, true);
+    assert(png.type === "image/png", "encode gave " + png.type);
+
+    // and the decode path, which used createImageBitmap unconditionally
+    const decoded = await P.getSourceCanvas({ fileObj: new File([png], "x.png", { type: "image/png" }) });
+    assert(decoded.width === 60 && decoded.height === 40,
+      `decode gave ${decoded.width}x${decoded.height}`);
+
+    const jpg = await P.canvasToBlob(decoded, "JPG", 80, false);
+    assert(jpg.type === "image/jpeg", "jpeg encode gave " + jpg.type);
+  } finally {
+    window.OffscreenCanvas = real;
+  }
+});
+
 // ── Colour depth reduction says what it does ───────────────────────────
 await test("depth reduction hits the advertised levels per channel", async () => {
   const c = busyCanvas(300);

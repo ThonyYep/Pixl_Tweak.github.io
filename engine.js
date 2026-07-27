@@ -18,7 +18,18 @@ const ENGINE = (() => {
     return ctx;
   }
 
-  const makeCanvas = (w, h) => new OffscreenCanvas(Math.max(1, w), Math.max(1, h));
+  // OffscreenCanvas where it exists, a DOM canvas where it does not. Without
+  // this the "inline fallback" was a lie: every call threw ReferenceError on
+  // Safari below 16.4. If OffscreenCanvas is missing then so is the worker, so
+  // this branch only ever runs on the main thread, where document exists.
+  // Checked per call, not cached, so the fallback is reachable in a test.
+  function makeCanvas(w, h) {
+    const W = Math.max(1, Math.round(w)), H = Math.max(1, Math.round(h));
+    if (typeof OffscreenCanvas !== "undefined") return new OffscreenCanvas(W, H);
+    const c = document.createElement("canvas");
+    c.width = W; c.height = H;
+    return c;
+  }
 
   // Past the browser's canvas cap there is no signal: the context comes back
   // as normal and every draw silently no-ops. Writing one pixel and reading it
@@ -33,12 +44,27 @@ const ENGINE = (() => {
     return ctx;
   }
 
+  // createImageBitmap arrived in Safari 15, OffscreenCanvas only in 16.4, so
+  // there is a real window where one exists without the other. Both routes
+  // apply EXIF orientation, so they produce the same pixels.
+  function decodeToBitmap(blob) {
+    if (typeof createImageBitmap === "function") return createImageBitmap(blob);
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      const url = URL.createObjectURL(blob);
+      img.onload  = () => { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = () => { URL.revokeObjectURL(url); reject(new Error("decode failed")); };
+      img.src = url;
+    });
+  }
+
   async function decodeToCanvas(blob) {
-    const bmp = await createImageBitmap(blob);   // applies EXIF orientation
-    const canvas = makeCanvas(bmp.width, bmp.height);
+    const bmp = await decodeToBitmap(blob);
+    const w = bmp.width || bmp.naturalWidth, h = bmp.height || bmp.naturalHeight;
+    const canvas = makeCanvas(w, h);
     const ctx = assertUsable(canvas);
     ctx.drawImage(bmp, 0, 0);
-    bmp.close();
+    if (bmp.close) bmp.close();
     return canvas;
   }
 
