@@ -2,7 +2,13 @@
   "name": "pixl-tweak",
   "version": "2.4.1",
   "private": true,
+  "type": "module",
   "scripts": {
-    "dev": "npx serve . --listen 3000"
+    "build": "node build.mjs",
+    "dev": "node build.mjs && npx serve . --listen 3000",
+    "watch": "node --watch-path=. build.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }

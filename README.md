@@ -47,19 +47,32 @@ none of them are reported as success.
 
 ## Running locally
 
-No build step. The `.jsx` files are transpiled in the browser by Babel standalone.
-
 ```bash
+npm install
 npm run dev
 ```
 
-Then open `http://localhost:3000`. Any static file server works — the app is
-plain HTML, CSS and JSX with React, JSZip and jsPDF loaded from a CDN.
+Then open `http://localhost:3000`. `dev` builds first and then serves; any
+static file server works on the output.
+
+The `.jsx` files are the sources — `build.mjs` runs esbuild over them and
+writes `bundle.js`, which is what `index.html` loads. **Edit the `.jsx` files,
+never `bundle.js`.** After editing, `npm run build` (or `npm run watch` to
+rebuild on save).
+
+The build is a transform, not a bundle: the sources are classic scripts that
+share one global scope and reach for each other's top-level names directly, so
+`build.mjs` concatenates them in load order and only converts the JSX.
+Bundling proper would give each file its own module scope and every cross-file
+reference would break.
+
+`bundle.js` and `selftest.bundle.js` are committed on purpose — GitHub Pages
+serves the repository as-is, with no build of its own.
 
 ## Tests
 
-`selftest.html` is a dependency-free suite that runs in the browser: start the
-dev server and open `http://localhost:3000/selftest.html`.
+`selftest.html` runs in the browser with no test framework: start the dev
+server and open `http://localhost:3000/selftest.html`.
 
 It guards the things that are easy to get quietly wrong — that an encoder never
 mislabels its output, that a failed file is reported instead of swallowed, that
@@ -79,7 +92,8 @@ encoder actually produced.
 | `copy.jsx` | All ES/EN strings |
 | `icons.jsx` | SVG icon set |
 | `styles.css` | Everything visual |
-| `selftest.html` | Browser test suite |
+| `build.mjs` | esbuild transform → `bundle.js`, `selftest.bundle.js` |
+| `selftest.html` + `selftest-cases.js` | Browser test suite |
 
 ## License
 

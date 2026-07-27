@@ -1,8 +1,10 @@
 # Claude Code local settings and preview config
 .claude/
 
-# Dependencies (npm run dev uses npx, but just in case)
 node_modules/
+
+# NOT ignored on purpose: bundle.js and selftest.bundle.js. GitHub Pages serves
+# this repository as-is and runs no build, so the built files have to be here.
 
 # OS cruft
 .DS_Store
