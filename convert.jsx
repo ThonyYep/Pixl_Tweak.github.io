@@ -471,8 +471,11 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
               </span>
             )}
           </div>
+          {/* No sign here: the label says "added" or "saved" and the pill
+              carries the direction, and formatBytes can return "<1", which a
+              "+" turns into the nonsense "+<1". */}
           <div className="summary-num" style={{ fontFamily: "Fraunces" }}>
-            {grew ? "+" : ""}{headNum}<span className="unit">{headUnit}</span>
+            {headNum}<span className="unit">{headUnit}</span>
           </div>
           {results && (
             <div className="summary-bar">

@@ -193,7 +193,7 @@ window.Processor = {
   canvasToBlob: ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   resizeCanvas: ENGINE.resizeCanvas,
-  resizeContain: ENGINE.resizeContain,
+  posterizeCanvas: ENGINE.posterizeCanvas,
   preShrink: ENGINE.preShrink,
   encodeBMP: ENGINE.encodeBMP,
   encodeICO: ENGINE.encodeICO,
@@ -202,10 +202,6 @@ window.Processor = {
   // main thread only
   canEncode,
   loadImage,
-  downloadBlob,
-  downloadZip,
-  buildPDF,
-  offloaded: CAN_OFFLOAD,
   cancelJob,
   processConvert,
   processResize,
@@ -476,7 +472,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
     fontFamily: "JetBrains Mono, monospace",
     fontSize: 12,
     color: "var(--ink-2)"
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "folder-export", size: 14 }), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t.convert.outputPath), /* @__PURE__ */ React.createElement("button", { style: { border: 0, background: "transparent", color: "var(--coral-ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: '"Plus Jakarta Sans"' } }, t.convert.change))), /* @__PURE__ */ React.createElement("div", { className: "summary" }, /* @__PURE__ */ React.createElement("div", { className: "summary-top" }, /* @__PURE__ */ React.createElement("span", { className: "lab" }, !results ? t.convert.queued : grew ? t.convert.totalGrew : t.convert.total), results && /* @__PURE__ */ React.createElement("span", { className: "summary-pill" + (grew ? " grew" : "") }, grew ? "+" : "\u2212", Math.abs(reductionPct), "%")), /* @__PURE__ */ React.createElement("div", { className: "summary-num", style: { fontFamily: "Fraunces" } }, grew ? "+" : "", headNum, /* @__PURE__ */ React.createElement("span", { className: "unit" }, headUnit)), results && /* @__PURE__ */ React.createElement("div", { className: "summary-bar" }, /* @__PURE__ */ React.createElement(
+  } }, /* @__PURE__ */ React.createElement(Icon, { name: "folder-export", size: 14 }), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t.convert.outputPath), /* @__PURE__ */ React.createElement("button", { style: { border: 0, background: "transparent", color: "var(--coral-ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: '"Plus Jakarta Sans"' } }, t.convert.change))), /* @__PURE__ */ React.createElement("div", { className: "summary" }, /* @__PURE__ */ React.createElement("div", { className: "summary-top" }, /* @__PURE__ */ React.createElement("span", { className: "lab" }, !results ? t.convert.queued : grew ? t.convert.totalGrew : t.convert.total), results && /* @__PURE__ */ React.createElement("span", { className: "summary-pill" + (grew ? " grew" : "") }, grew ? "+" : "\u2212", Math.abs(reductionPct), "%")), /* @__PURE__ */ React.createElement("div", { className: "summary-num", style: { fontFamily: "Fraunces" } }, headNum, /* @__PURE__ */ React.createElement("span", { className: "unit" }, headUnit)), results && /* @__PURE__ */ React.createElement("div", { className: "summary-bar" }, /* @__PURE__ */ React.createElement(
     "div",
     {
       className: "summary-bar-fill" + (grew ? " grew" : ""),
@@ -951,6 +947,31 @@ function brokenFile() {
       `200 KB budget gave ${big.blob.size} B but 40 KB gave ${small.blob.size} B`
     );
     assert(big.quality >= small.quality, "a looser budget chose a lower quality");
+  });
+  await test("depth reduction hits the advertised levels per channel", async () => {
+    const c = busyCanvas(300);
+    for (const levels of [128, 64, 32, 16]) {
+      const out2 = P.posterizeCanvas(c, levels);
+      const d = out2.getContext("2d").getImageData(0, 0, 300, 300).data;
+      const perChannel = /* @__PURE__ */ new Set();
+      for (let i = 0; i < d.length; i += 4) {
+        perChannel.add(d[i]);
+      }
+      assert(
+        perChannel.size <= levels,
+        `asked for ${levels} levels, red channel came back with ${perChannel.size}`
+      );
+    }
+  });
+  await test("no depth option is a no-op", async () => {
+    const c = busyCanvas(300);
+    const before = c.getContext("2d").getImageData(0, 0, 300, 300).data;
+    for (const levels of [128, 64, 32, 16]) {
+      const d = P.posterizeCanvas(c, levels).getContext("2d").getImageData(0, 0, 300, 300).data;
+      let changed = 0;
+      for (let i = 0; i < before.length; i++) if (before[i] !== d[i]) changed++;
+      assert(changed > 0, `${levels} levels left the image untouched`);
+    }
   });
   await test("OxiPNG is smaller than the browser's PNG, and still lossless", async () => {
     const c = busyCanvas(400);

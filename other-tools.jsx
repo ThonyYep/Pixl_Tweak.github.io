@@ -504,7 +504,9 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
                   {t.compress.maxColors}
                 </label>
                 <div className="preset-grid" style={{ gridTemplateColumns:"repeat(4,1fr)" }}>
-                  {[256,128,64,32].map(n => (
+                  {/* 256 is gone: it means 256 levels per channel, which is
+                      what 8-bit already is, so it changed nothing at all. */}
+                  {[128,64,32,16].map(n => (
                     <button key={n} className={"preset " + (maxColors===n?"on":"")}
                       onClick={() => setMaxColors(maxColors===n ? null : n)}>
                       <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace", fontSize:11 }}>{n}</span>

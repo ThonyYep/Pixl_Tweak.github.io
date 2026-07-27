@@ -197,20 +197,21 @@ function useFileUrl(file) {
 }
 window.useFileUrl = useFileUrl;
 
+// downloadBlob, downloadZip and buildPDF are deliberately not here: finish()
+// is their only caller and exporting them was surface nothing used.
 window.Processor = {
   // engine, re-exported so callers and tests reach one implementation
   canvasToBlob:       ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   resizeCanvas:       ENGINE.resizeCanvas,
-  resizeContain:      ENGINE.resizeContain,
+  posterizeCanvas:    ENGINE.posterizeCanvas,
   preShrink:          ENGINE.preShrink,
   encodeBMP:          ENGINE.encodeBMP,
   encodeICO:          ENGINE.encodeICO,
   getSourceCanvas:    f => ENGINE.sourceCanvas({ blob: f.fileObj || f.blob, w: f.w, h: f.h, palette: f.palette }),
   getOutputName:      ENGINE.outputName,
   // main thread only
-  canEncode, loadImage, downloadBlob, downloadZip, buildPDF,
-  offloaded: CAN_OFFLOAD,
+  canEncode, loadImage,
   cancelJob,
   processConvert, processResize, processCompress, processCrop,
 };

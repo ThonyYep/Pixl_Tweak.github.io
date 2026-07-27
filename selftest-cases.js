@@ -457,6 +457,32 @@ await test("higher budgets never produce smaller files", async () => {
   assert(big.quality >= small.quality, "a looser budget chose a lower quality");
 });
 
+// ── Colour depth reduction says what it does ───────────────────────────
+await test("depth reduction hits the advertised levels per channel", async () => {
+  const c = busyCanvas(300);
+  for (const levels of [128, 64, 32, 16]) {
+    const out = P.posterizeCanvas(c, levels);
+    const d = out.getContext("2d").getImageData(0, 0, 300, 300).data;
+    const perChannel = new Set();
+    for (let i = 0; i < d.length; i += 4) { perChannel.add(d[i]); }
+    assert(perChannel.size <= levels,
+      `asked for ${levels} levels, red channel came back with ${perChannel.size}`);
+  }
+});
+
+await test("no depth option is a no-op", async () => {
+  // 256 used to be offered and changed nothing, because 8-bit already is 256
+  // levels. Every option left has to actually alter the image.
+  const c = busyCanvas(300);
+  const before = c.getContext("2d").getImageData(0, 0, 300, 300).data;
+  for (const levels of [128, 64, 32, 16]) {
+    const d = P.posterizeCanvas(c, levels).getContext("2d").getImageData(0, 0, 300, 300).data;
+    let changed = 0;
+    for (let i = 0; i < before.length; i++) if (before[i] !== d[i]) changed++;
+    assert(changed > 0, `${levels} levels left the image untouched`);
+  }
+});
+
 // ── WASM encoders ──────────────────────────────────────────────────────
 await test("OxiPNG is smaller than the browser's PNG, and still lossless", async () => {
   const c = busyCanvas(400);
