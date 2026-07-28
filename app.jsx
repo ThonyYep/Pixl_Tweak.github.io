@@ -8,6 +8,31 @@ const LOOK = {
   radius: 18,
 };
 
+// Preferences survive a reload. localStorage throws when storage is disabled
+// or the page is sandboxed, and remembering a theme is not worth breaking the
+// app over, so both directions swallow it.
+const PREF = "pixl.";
+function recall(key, allowed) {
+  try {
+    const v = localStorage.getItem(PREF + key);
+    return allowed.includes(v) ? v : null;
+  } catch (e) { return null; }
+}
+// Only a deliberate click is written. Persisting the resolved default instead
+// would freeze the app on whatever the OS said the first time it was opened.
+const choose = (key, set) => value => {
+  try { localStorage.setItem(PREF + key, value); } catch (e) {}
+  set(value);
+};
+
+const preferredTheme = () =>
+  recall("theme", ["light", "dark"]) ||
+  (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+
+const preferredLang = () =>
+  recall("lang", ["es", "en"]) ||
+  (String(navigator.language || "").toLowerCase().startsWith("es") ? "es" : "en");
+
 function Tabs({ t, value, onChange, fileCount }) {
   const items = [
     { id: "convert",  label: t.tabs.convert,  ico: "convert"  },
@@ -244,8 +269,11 @@ const PALETTES = [
 ];
 
 function App() {
-  const [theme, setTheme] = React.useState("light");
-  const [lang,  setLang]  = React.useState("es");
+  // Remembered between visits, and the first visit follows the browser rather
+  // than a hardcoded light/Spanish. The English strings existed all along and
+  // an English visitor never saw them.
+  const [theme, setTheme] = React.useState(preferredTheme);
+  const [lang,  setLang]  = React.useState(preferredLang);
   const t = COPY[lang];
 
   const [tab,  setTab]  = React.useState("convert");
@@ -293,13 +321,12 @@ function App() {
     root.style.setProperty("--radius-sm", Math.max(6, LOOK.radius * .55) + "px");
   }, []);
 
-  // The only thing the user can actually switch.
   React.useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
-  // index.html ships lang="en" but the interface starts in Spanish, and this
-  // is what a screen reader picks its pronunciation from.
+  // Also what a screen reader picks its pronunciation from, so it has to track
+  // the interface language rather than the lang="en" index.html ships with.
   React.useEffect(() => {
     document.documentElement.lang = lang;
   }, [lang]);
@@ -414,9 +441,9 @@ function App() {
               <div className="sub">{t.appSub}</div>
             </div>
             <div className="controls">
-              <LangToggle lang={lang} onChange={setLang} />
+              <LangToggle lang={lang} onChange={choose("lang", setLang)} />
               <button className="iconbtn"
-                onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+                onClick={() => choose("theme", setTheme)(theme === "dark" ? "light" : "dark")}
                 title="Toggle theme">
                 <Icon name={theme === "dark" ? "sun" : "moon"} size={16} />
               </button>
