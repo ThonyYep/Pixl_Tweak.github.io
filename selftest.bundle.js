@@ -538,7 +538,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
       className: "summary-bar-fill" + (grew ? " grew" : ""),
       style: { width: Math.min(100, Math.abs(reductionPct)) + "%" }
     }
-  )), /* @__PURE__ */ React.createElement("div", { className: "summary-foot" }, /* @__PURE__ */ React.createElement("span", null, formatBytes(totalSize)), results && /* @__PURE__ */ React.createElement("span", { className: "arr" }, "\u2192"), results && /* @__PURE__ */ React.createElement("span", { className: "emph" }, formatBytes(totalOut)), /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, settings.format))), /* @__PURE__ */ React.createElement("div", { className: "actions" }, /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement("div", { className: "summary-foot" }, /* @__PURE__ */ React.createElement("span", null, formatBytes(results ? inputDone : totalSize)), results && /* @__PURE__ */ React.createElement("span", { className: "arr" }, "\u2192"), results && /* @__PURE__ */ React.createElement("span", { className: "emph" }, formatBytes(totalOut)), /* @__PURE__ */ React.createElement("span", { style: { marginLeft: "auto" } }, settings.format))), /* @__PURE__ */ React.createElement("div", { className: "actions" }, /* @__PURE__ */ React.createElement(
     "button",
     {
       className: "btn primary",

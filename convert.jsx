@@ -501,7 +501,11 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             </div>
           )}
           <div className="summary-foot">
-            <span>{formatBytes(totalSize)}</span>
+            {/* Once there are results this has to be inputDone, not the whole
+                queue: with 2 of 4 files failing it read "7.98 KB → 1.47 KB"
+                directly beside "−76%", and 7.98→1.47 is −82%. The percentage
+                and the saved figure already exclude the failures. */}
+            <span>{formatBytes(results ? inputDone : totalSize)}</span>
             {results && <span className="arr">→</span>}
             {results && <span className="emph">{formatBytes(totalOut)}</span>}
             <span style={{ marginLeft: "auto" }}>{settings.format}</span>
