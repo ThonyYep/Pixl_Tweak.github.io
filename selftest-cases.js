@@ -720,7 +720,22 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("max compression never returns a file larger than plain encoding", async () => {
+  // MozJPEG loses on dense high-frequency detail at high quality — it measured
+  // 101% larger than canvas at quality 95 — so the option has to fall back
+  // rather than hand back a bigger file under the word "compression".
+  const c = busyCanvas(400);
+  for (const q of [50, 82, 95]) {
+    const plain = await P.canvasToBlob(c, "JPG", q, false, false);
+    const max   = await P.canvasToBlob(c, "JPG", q, false, true);
+    assert(max.size <= plain.size,
+      `quality ${q}: max ${max.size} B vs plain ${plain.size} B — max compression grew the file`);
+  }
+});
+
 await test("MozJPEG emits a progressive JPEG, which canvas cannot", async () => {
+  // Quality 75 on busy content is comfortably inside the range where MozJPEG
+  // wins, so the wasm output is the one that ships and SOF2 is expected.
   const blob = await P.canvasToBlob(busyCanvas(300), "JPG", 75, false, true);
   const u = new Uint8Array(await blob.arrayBuffer());
   assert(u[0] === 0xFF && u[1] === 0xD8, "not a JPEG at all");

@@ -2001,6 +2001,17 @@ function brokenFile() {
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
   });
+  await test("max compression never returns a file larger than plain encoding", async () => {
+    const c = busyCanvas(400);
+    for (const q of [50, 82, 95]) {
+      const plain = await P.canvasToBlob(c, "JPG", q, false, false);
+      const max = await P.canvasToBlob(c, "JPG", q, false, true);
+      assert(
+        max.size <= plain.size,
+        `quality ${q}: max ${max.size} B vs plain ${plain.size} B \u2014 max compression grew the file`
+      );
+    }
+  });
   await test("MozJPEG emits a progressive JPEG, which canvas cannot", async () => {
     const blob = await P.canvasToBlob(busyCanvas(300), "JPG", 75, false, true);
     const u = new Uint8Array(await blob.arrayBuffer());

@@ -8,7 +8,7 @@
 // cross-file reference would come back undefined.
 
 import { transform } from "esbuild";
-import { readFile, writeFile, mkdir, copyFile } from "node:fs/promises";
+import { readFile, writeFile, mkdir, copyFile, readdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
 // The WASM codecs are vendored rather than pulled from a CDN, because the app
@@ -35,7 +35,22 @@ for (const [from, to] of VENDOR) {
   await copyFile("node_modules/" + from, to);
   vendored++;
 }
-console.log(`vendor/              ${vendored} codec files copied`);
+// The service worker has to precache these by hand, and that list silently
+// fell behind once already — the codecs shipped, but offline only worked if
+// you had used max compression while online first.
+// Walks the directory rather than VENDOR, so the hand-written oxipng.js
+// wrapper is covered too — it is not copied by the loop above but the app
+// cannot compress a PNG without it.
+const sw = await readFile("sw.js", "utf8");
+const walk = async dir => (await Promise.all(
+  (await readdir(dir, { withFileTypes: true })).map(e =>
+    e.isDirectory() ? walk(`${dir}/${e.name}`) : [`${dir}/${e.name}`]))).flat();
+const missing = (await walk("vendor")).filter(f => !sw.includes(`"./${f}"`));
+if (missing.length) {
+  console.error(`sw.js SHELL is missing:\n  ${missing.join("\n  ")}`);
+  process.exit(1);
+}
+console.log(`vendor/              ${vendored} codec files copied, all in sw.js SHELL`);
 
 const BUNDLES = [
   { out: "bundle.js", minify: true,

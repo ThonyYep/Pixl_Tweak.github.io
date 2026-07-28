@@ -210,6 +210,10 @@ const ENGINE = (() => {
   function loadCodec(name, path) {
     if (!codecs[name]) {
       codecs[name] = import(new URL(path, self.location.href).href).then(m => m.default);
+      // A rejected promise is still truthy, so one failed load would be
+      // memoised and max compression would stay broken for the rest of the
+      // session — including after the network came back.
+      codecs[name].catch(() => { delete codecs[name]; });
     }
     return codecs[name];
   }
@@ -242,11 +246,26 @@ const ENGINE = (() => {
       ctx.drawImage(canvas, 0, 0);
       src = flat;
     }
+    let blob;
     if (maxCompress && MAX_COMPRESS_FORMATS.has(format)) {
-      const out = await encodeMax(src, format, quality);
-      if (src !== canvas) releaseCanvas(src);
-      return out;
+      // MozJPEG and OxiPNG usually win by a wide margin — but not always. On
+      // dense high-frequency detail at quality 95, MozJPEG measured 101%
+      // LARGER than the browser encoder, and "max compression" that doubles
+      // the file is a lie. Encode both and keep whichever is smaller; the
+      // browser encode is cheap next to the WASM one.
+      const [wasm, native] = await Promise.all([
+        encodeMax(src, format, quality),
+        encodeNative(src, format, q),
+      ]);
+      blob = wasm.size <= native.size ? wasm : native;
+    } else {
+      blob = await encodeNative(src, format, q);
     }
+    if (src !== canvas) releaseCanvas(src);
+    return blob;
+  }
+
+  async function encodeNative(src, format, q) {
     const mimeMap = {
       PNG:  ["image/png",  1.0],
       JPG:  ["image/jpeg", q],
@@ -277,7 +296,6 @@ const ENGINE = (() => {
     // format and quietly substituted PNG. Neither throws on its own.
     if (!blob) throw tooLarge();
     if (blob.type !== mime) throw new Error("UNSUPPORTED_OUTPUT:" + format);
-    if (src !== canvas) releaseCanvas(src);
     return blob;
   }
 
