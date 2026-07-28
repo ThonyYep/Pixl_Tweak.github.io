@@ -103,7 +103,7 @@ function Thumb({ palette }) {
 
 // There is no size to show until the file has actually been encoded — the old
 // per-format guess factors were invented numbers shown as fact.
-function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }) {
+function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove, locked }) {
   const failed = state === "error";
   return (
     <div className={"file-row " + (state || "")}>
@@ -124,9 +124,9 @@ function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }
           <span className="new" style={{ fontWeight:"500" }}>{formatBytes(outBytes)}</span>
         )}
       </div>
-      <button className="x" onClick={() => onRemove(file.id)} aria-label="Remove">
+      {!locked && <button className="x" onClick={() => onRemove(file.id)} aria-label="Remove">
         <Icon name="x" size={14} />
-      </button>
+      </button>}
       <div className="progress-track">
         <div className="fill" style={{ width: (state === "done" ? 100 : progress || 0) + "%" }} />
       </div>
@@ -139,6 +139,11 @@ function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }
 function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, job, onStart, onAddFiles }) {
   const [clearHover, setClearHover] = React.useState(false);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
+  // The queue is frozen while it runs. Editing it mid-job desynchronised the
+  // summary from the output: removing two of six files still shipped six in
+  // the zip while the banner counted four, and the savings compared four
+  // inputs against six outputs.
+  const locked = mode === "converting";
 
   const progress = job?.progress || {};
   const errors   = job?.errors   || [];
@@ -255,6 +260,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
           <div className="head" style={{ display:"flex", alignItems:"center", justifyContent:"space-between" }}>
             <h3 style={{ margin:0 }}>{files.length} {t.convert.filesIn}</h3>
             <button
+              disabled={locked}
               onClick={() => setFiles([])}
               onMouseEnter={() => setClearHover(true)}
               onMouseLeave={() => setClearHover(false)}
@@ -294,6 +300,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
                   state={p?.state === "error" ? "error" : (mode === "done" ? "done" : p?.state)}
                   error={errorText[f.id]}
                   onRemove={id => setFiles(files.filter(x => x.id !== id))}
+                  locked={locked}
                 />
               );
             })}
@@ -301,6 +308,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
 
           <button
             className="btn ghost"
+            disabled={locked}
             style={{ marginTop: 10, width: "100%", justifyContent: "center" }}
             onClick={onAddFiles}>
             <Icon name="plus" size={14} /> {t.convert.moreFiles}

@@ -118,13 +118,13 @@ function FilePill({ file, selected, onClick }) {
   );
 }
 
-function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
+function FileStrip({ files, selectedIdx, onSelect, onAdd, disabled }) {
   return (
     <div style={{ display:"flex", gap:6, paddingBottom:10, overflowX:"auto", alignItems:"center" }}>
       {files.map((f,i) => (
         <FilePill key={f.id} file={f} selected={i===selectedIdx} onClick={() => onSelect(i)} />
       ))}
-      <button onClick={onAdd} title="Add images" style={{
+      <button onClick={onAdd} disabled={disabled} title="Add images" style={{
         width:44, height:44, flexShrink:0, border:"1.5px dashed var(--line)",
         borderRadius:8, background:"transparent", cursor:"pointer", color:"var(--ink-3)",
         display:"flex", alignItems:"center", justifyContent:"center",
@@ -135,11 +135,12 @@ function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
   );
 }
 
-function ClearAllButton({ onClear, label }) {
+function ClearAllButton({ onClear, label, disabled }) {
   const [hover, setHover] = React.useState(false);
   return (
     <button
       onClick={onClear}
+      disabled={disabled}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
       style={{
@@ -255,14 +256,14 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   return (
     <div className="tool-stage">
       <div>
-        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} />
+        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} disabled={processing} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             <div style={{ display:"flex" }}>
-              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} />
+              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} disabled={processing} />
             </div>
             <div style={{
               position:"relative", overflow:"hidden",
@@ -425,14 +426,14 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   return (
     <div className="tool-stage">
       <div>
-        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} />
+        <FileStrip files={files} selectedIdx={idx} onSelect={setSelectedIdx} onAdd={onAddFiles} disabled={processing} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
         ) : (
           <>
             <div style={{ display:"flex", marginBottom:4 }}>
-              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} />
+              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} disabled={processing} />
             </div>
             <div style={{
               minHeight:200, marginBottom:14, position:"relative",
@@ -866,14 +867,14 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <FileStrip
           files={files} selectedIdx={idx}
           onSelect={i => { setSelectedIdx(i); setResetKey(k => k + 1); }}
-          onAdd={onAddFiles} />
+          onAdd={onAddFiles} disabled={processing} />
 
         {files.length === 0 ? (
           <MiniDropZone onAdd={onAddFiles} onDrop={onDropFiles} />
         ) : (
           <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
             <div style={{ display:"flex" }}>
-              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} />
+              <ClearAllButton onClear={onClearFiles} label={t.convert.clearAll} disabled={processing} />
             </div>
             {/* 12px padding gives crop handles room to render outside the image edge */}
             <div style={{ padding:12 }}>

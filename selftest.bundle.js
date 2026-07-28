@@ -312,13 +312,14 @@ function Thumb({ palette }) {
   const [a, b, c] = palette;
   return /* @__PURE__ */ React.createElement("svg", { viewBox: "0 0 60 60", preserveAspectRatio: "none" }, /* @__PURE__ */ React.createElement("defs", null, /* @__PURE__ */ React.createElement("linearGradient", { id: "g" + a + b, x1: "0", x2: "1", y1: "0", y2: "1" }, /* @__PURE__ */ React.createElement("stop", { offset: "0%", stopColor: a }), /* @__PURE__ */ React.createElement("stop", { offset: "100%", stopColor: b }))), /* @__PURE__ */ React.createElement("rect", { x: "0", y: "0", width: "60", height: "60", fill: "url(#g" + a + b + ")" }), /* @__PURE__ */ React.createElement("circle", { cx: "18", cy: "22", r: "6", fill: "#fff8ec", opacity: ".7" }), /* @__PURE__ */ React.createElement("path", { d: "M0 50 L20 32 L34 44 L48 28 L60 40 L60 60 L0 60 Z", fill: c, opacity: ".7" }));
 }
-function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove }) {
+function FileRow({ file, targetFmt, progress, state, error, outBytes, onRemove, locked }) {
   const failed = state === "error";
-  return /* @__PURE__ */ React.createElement("div", { className: "file-row " + (state || "") }, /* @__PURE__ */ React.createElement("div", { className: "thumb" }, /* @__PURE__ */ React.createElement(ThumbOrImg, { file })), /* @__PURE__ */ React.createElement("div", { className: "info" }, /* @__PURE__ */ React.createElement("div", { className: "name" }, file.name), /* @__PURE__ */ React.createElement("div", { className: "stats" }, /* @__PURE__ */ React.createElement("span", { className: "from" }, file.ext), /* @__PURE__ */ React.createElement("span", { className: "arrow" }, "\u2192"), /* @__PURE__ */ React.createElement("span", { className: "to" }, targetFmt), file.w > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", null, "\xB7"), /* @__PURE__ */ React.createElement("span", null, file.w, "\xD7", file.h)))), /* @__PURE__ */ React.createElement("div", { className: "size" }, /* @__PURE__ */ React.createElement("span", null, formatBytes(file.size)), failed && /* @__PURE__ */ React.createElement("span", { className: "new err" }, error), !failed && outBytes != null && /* @__PURE__ */ React.createElement("span", { className: "new", style: { fontWeight: "500" } }, formatBytes(outBytes))), /* @__PURE__ */ React.createElement("button", { className: "x", onClick: () => onRemove(file.id), "aria-label": "Remove" }, /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 14 })), /* @__PURE__ */ React.createElement("div", { className: "progress-track" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: (state === "done" ? 100 : progress || 0) + "%" } })));
+  return /* @__PURE__ */ React.createElement("div", { className: "file-row " + (state || "") }, /* @__PURE__ */ React.createElement("div", { className: "thumb" }, /* @__PURE__ */ React.createElement(ThumbOrImg, { file })), /* @__PURE__ */ React.createElement("div", { className: "info" }, /* @__PURE__ */ React.createElement("div", { className: "name" }, file.name), /* @__PURE__ */ React.createElement("div", { className: "stats" }, /* @__PURE__ */ React.createElement("span", { className: "from" }, file.ext), /* @__PURE__ */ React.createElement("span", { className: "arrow" }, "\u2192"), /* @__PURE__ */ React.createElement("span", { className: "to" }, targetFmt), file.w > 0 && /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("span", null, "\xB7"), /* @__PURE__ */ React.createElement("span", null, file.w, "\xD7", file.h)))), /* @__PURE__ */ React.createElement("div", { className: "size" }, /* @__PURE__ */ React.createElement("span", null, formatBytes(file.size)), failed && /* @__PURE__ */ React.createElement("span", { className: "new err" }, error), !failed && outBytes != null && /* @__PURE__ */ React.createElement("span", { className: "new", style: { fontWeight: "500" } }, formatBytes(outBytes))), !locked && /* @__PURE__ */ React.createElement("button", { className: "x", onClick: () => onRemove(file.id), "aria-label": "Remove" }, /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 14 })), /* @__PURE__ */ React.createElement("div", { className: "progress-track" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: (state === "done" ? 100 : progress || 0) + "%" } })));
 }
 function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, job, onStart, onAddFiles }) {
   const [clearHover, setClearHover] = React.useState(false);
   const totalSize = files.reduce((a, f) => a + f.size, 0);
+  const locked = mode === "converting";
   const progress = job?.progress || {};
   const errors = job?.errors || [];
   const outSizes = job?.sizes || null;
@@ -361,6 +362,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   return /* @__PURE__ */ React.createElement("div", { className: "file-stage" }, /* @__PURE__ */ React.createElement("div", null, mode === "converting" && /* @__PURE__ */ React.createElement("div", { className: "banner" }, /* @__PURE__ */ React.createElement("div", { className: "spin" }), /* @__PURE__ */ React.createElement("div", { className: "text", style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, t.convert.converting), " \xB7 ", completed, "/", files.length, elapsed > 0 && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: 8, fontFamily: "JetBrains Mono, monospace", fontSize: 12, opacity: 0.75 } }, elapsed, "s ", t.convert.elapsed)), /* @__PURE__ */ React.createElement("div", { className: "small" }, t.convert.convertingSub)), /* @__PURE__ */ React.createElement("div", { className: "bar", style: { flex: 1, maxWidth: 220 } }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: overall + "%" } })), /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => Processor.cancelJob() }, /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 14 }), " ", t.convert.cancel)), mode === "done" && /* @__PURE__ */ React.createElement("div", { className: "done-banner" + (allFailed ? " failed" : "") }, /* @__PURE__ */ React.createElement("div", { className: "check" }, /* @__PURE__ */ React.createElement(Icon, { name: allFailed ? "x" : "check", size: 20, stroke: 2.6 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, errors.length > 0 ? t.convert.failTitle : t.convert.doneTitle), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, opacity: 0.85 } }, stopped ? t.convert.cancelled.replace("{n}", (outSizes || []).length).replace("{total}", files.length) : errors.length > 0 ? t.convert.failSub.replace("{n}", errors.length).replace("{total}", files.length) : doneMessage(t, files.length - errors.length, grew, grew ? -delta : saved))), /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => setMode("idle") }, /* @__PURE__ */ React.createElement(Icon, { name: "rotate", size: 14 }), " ", t.convert.again), !allFailed && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-3)", fontWeight: 500 } }, /* @__PURE__ */ React.createElement(Icon, { name: "folder", size: 13 }), " ", t.convert.downloads, " \u2193")), /* @__PURE__ */ React.createElement("div", { className: "file-list" }, /* @__PURE__ */ React.createElement("div", { className: "head", style: { display: "flex", alignItems: "center", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("h3", { style: { margin: 0 } }, files.length, " ", t.convert.filesIn), /* @__PURE__ */ React.createElement(
     "button",
     {
+      disabled: locked,
       onClick: () => setFiles([]),
       onMouseEnter: () => setClearHover(true),
       onMouseLeave: () => setClearHover(false),
@@ -401,13 +403,15 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         progress: p?.v,
         state: p?.state === "error" ? "error" : mode === "done" ? "done" : p?.state,
         error: errorText[f.id],
-        onRemove: (id) => setFiles(files.filter((x) => x.id !== id))
+        onRemove: (id) => setFiles(files.filter((x) => x.id !== id)),
+        locked
       }
     );
   })), /* @__PURE__ */ React.createElement(
     "button",
     {
       className: "btn ghost",
+      disabled: locked,
       style: { marginTop: 10, width: "100%", justifyContent: "center" },
       onClick: onAddFiles
     },
@@ -591,8 +595,8 @@ function FilePill({ file, selected, onClick }) {
     transition: "border .15s,box-shadow .15s"
   } }, url ? /* @__PURE__ */ React.createElement("img", { src: url, alt: file.name, style: { width: "100%", height: "100%", objectFit: "cover", display: "block" } }) : /* @__PURE__ */ React.createElement(Thumb, { palette: file.palette }));
 }
-function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
-  return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, paddingBottom: 10, overflowX: "auto", alignItems: "center" } }, files.map((f, i) => /* @__PURE__ */ React.createElement(FilePill, { key: f.id, file: f, selected: i === selectedIdx, onClick: () => onSelect(i) })), /* @__PURE__ */ React.createElement("button", { onClick: onAdd, title: "Add images", style: {
+function FileStrip({ files, selectedIdx, onSelect, onAdd, disabled }) {
+  return /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, paddingBottom: 10, overflowX: "auto", alignItems: "center" } }, files.map((f, i) => /* @__PURE__ */ React.createElement(FilePill, { key: f.id, file: f, selected: i === selectedIdx, onClick: () => onSelect(i) })), /* @__PURE__ */ React.createElement("button", { onClick: onAdd, disabled, title: "Add images", style: {
     width: 44,
     height: 44,
     flexShrink: 0,
@@ -606,12 +610,13 @@ function FileStrip({ files, selectedIdx, onSelect, onAdd }) {
     justifyContent: "center"
   } }, /* @__PURE__ */ React.createElement(Icon, { name: "plus", size: 16 })));
 }
-function ClearAllButton({ onClear, label }) {
+function ClearAllButton({ onClear, label, disabled }) {
   const [hover, setHover] = React.useState(false);
   return /* @__PURE__ */ React.createElement(
     "button",
     {
       onClick: onClear,
+      disabled,
       onMouseEnter: () => setHover(true),
       onMouseLeave: () => setHover(false),
       style: {
@@ -745,7 +750,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     );
   }
   const fitTooltips = t.resize.fitTooltips || ["", "", ""];
-  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(FileStrip, { files, selectedIdx: idx, onSelect: setSelectedIdx, onAdd: onAddFiles }), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll })), /* @__PURE__ */ React.createElement("div", { style: {
+  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(FileStrip, { files, selectedIdx: idx, onSelect: setSelectedIdx, onAdd: onAddFiles, disabled: processing }), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll, disabled: processing })), /* @__PURE__ */ React.createElement("div", { style: {
     position: "relative",
     overflow: "hidden",
     background: "var(--surface-1,white)",
@@ -850,7 +855,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
       }
     );
   }
-  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(FileStrip, { files, selectedIdx: idx, onSelect: setSelectedIdx, onAdd: onAddFiles }), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", marginBottom: 4 } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll })), /* @__PURE__ */ React.createElement("div", { style: {
+  return /* @__PURE__ */ React.createElement("div", { className: "tool-stage" }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement(FileStrip, { files, selectedIdx: idx, onSelect: setSelectedIdx, onAdd: onAddFiles, disabled: processing }), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement(React.Fragment, null, /* @__PURE__ */ React.createElement("div", { style: { display: "flex", marginBottom: 4 } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll, disabled: processing })), /* @__PURE__ */ React.createElement("div", { style: {
     minHeight: 200,
     marginBottom: 14,
     position: "relative",
@@ -1171,9 +1176,10 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         setSelectedIdx(i);
         setResetKey((k) => k + 1);
       },
-      onAdd: onAddFiles
+      onAdd: onAddFiles,
+      disabled: processing
     }
-  ), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll })), /* @__PURE__ */ React.createElement("div", { style: { padding: 12 } }, /* @__PURE__ */ React.createElement("div", { ref: frameRef, style: { position: "relative", minHeight: 360, overflow: "visible", borderRadius: "var(--radius-lg,12px)", border: "1.5px solid var(--line)" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", inset: 0, borderRadius: "var(--radius-lg,12px)", overflow: "hidden", background: "var(--surface-1,white)" } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: {
+  ), files.length === 0 ? /* @__PURE__ */ React.createElement(MiniDropZone, { onAdd: onAddFiles, onDrop: onDropFiles }) : /* @__PURE__ */ React.createElement("div", { style: { display: "flex", flexDirection: "column", gap: 6 } }, /* @__PURE__ */ React.createElement("div", { style: { display: "flex" } }, /* @__PURE__ */ React.createElement(ClearAllButton, { onClear: onClearFiles, label: t.convert.clearAll, disabled: processing })), /* @__PURE__ */ React.createElement("div", { style: { padding: 12 } }, /* @__PURE__ */ React.createElement("div", { ref: frameRef, style: { position: "relative", minHeight: 360, overflow: "visible", borderRadius: "var(--radius-lg,12px)", border: "1.5px solid var(--line)" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", inset: 0, borderRadius: "var(--radius-lg,12px)", overflow: "hidden", background: "var(--surface-1,white)" } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: {
     position: "absolute",
     inset: 0,
     width: "100%",
