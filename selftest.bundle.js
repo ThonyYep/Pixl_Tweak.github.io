@@ -750,8 +750,8 @@ function FitButton({ label, tooltip, active, onClick }) {
 }
 function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
-  const [w, setW] = React.useState(1280);
-  const [h, setH] = React.useState(720);
+  const [w, setW] = React.useState(0);
+  const [h, setH] = React.useState(0);
   const [lock, setLock] = React.useState(true);
   const [fit, setFit] = React.useState(0);
   const [upscale, setUpscale] = React.useState(false);
@@ -759,18 +759,20 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [transparent, setTransparent] = React.useState(true);
   const [processing, setProcessing] = React.useState(false);
   const [errors, setErrors] = React.useState([]);
-  const [origDims, setOrigDims] = React.useState({ w: 0, h: 0 });
   const idx = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
   const fileUrl = useFileUrl(selectedFile);
+  const origDims = { w: selectedFile?.w || 0, h: selectedFile?.h || 0 };
+  const measured = origDims.w > 0;
+  const seeded = React.useRef(null);
   React.useEffect(() => {
-    const iw = selectedFile?.w || 0, ih = selectedFile?.h || 0;
-    setOrigDims({ w: iw, h: ih });
-    if (iw > 0) {
-      setW(iw);
-      setH(ih);
-    }
-  }, [selectedFile?.id, selectedFile?.w]);
+    if (!measured) return;
+    const stamp = `${selectedFile.id}:${origDims.w}x${origDims.h}`;
+    if (seeded.current === stamp) return;
+    seeded.current = stamp;
+    setW(origDims.w);
+    setH(origDims.h);
+  }, [selectedFile?.id, origDims.w, origDims.h, measured]);
   const ratio = origDims.h > 0 ? origDims.w / origDims.h : null;
   function handleApply() {
     setProcessing(true);
@@ -798,15 +800,35 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     alignItems: "center",
     justifyContent: "center",
     minHeight: 220
-  } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 260, objectFit: "contain", display: "block", padding: 10, boxSizing: "border-box" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 300 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, w > 0 ? `${w}\xD7${h} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.resize.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.width, " & ", t.resize.height), /* @__PURE__ */ React.createElement("div", { className: "dim-row" }, /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.width), /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "numeric", value: w, onChange: (e) => {
-    const v = +e.target.value.replace(/\D/g, "") || 0;
-    setW(v);
-    if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
-  } })), /* @__PURE__ */ React.createElement("button", { className: "link " + (lock ? "on" : ""), onClick: () => setLock(!lock), title: t.resize.lock }, /* @__PURE__ */ React.createElement(Icon, { name: lock ? "lock" : "unlock", size: 16 })), /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.height), /* @__PURE__ */ React.createElement("input", { type: "text", inputMode: "numeric", value: h, onChange: (e) => {
-    const v = +e.target.value.replace(/\D/g, "") || 0;
-    setH(v);
-    if (lock && ratio) setW(lockedPartner(v, ratio, "height"));
-  } })))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.fit), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 } }, t.resize.fits.map((name, i) => /* @__PURE__ */ React.createElement(FitButton, { key: i, label: name, tooltip: fitTooltips[i], active: fit === i, onClick: () => setFit(i) })))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.outputFormat), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ["JPG", "PNG", "WEBP"].map((fmt) => /* @__PURE__ */ React.createElement(
+  } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 260, objectFit: "contain", display: "block", padding: 10, boxSizing: "border-box" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 300 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, w > 0 ? `${w}\xD7${h} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.resize.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.width, " & ", t.resize.height), /* @__PURE__ */ React.createElement("div", { className: "dim-row" }, /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.width), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      inputMode: "numeric",
+      value: measured ? w : "",
+      disabled: !measured,
+      placeholder: "\u2014",
+      onChange: (e) => {
+        const v = +e.target.value.replace(/\D/g, "") || 0;
+        setW(v);
+        if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
+      }
+    }
+  )), /* @__PURE__ */ React.createElement("button", { className: "link " + (lock ? "on" : ""), onClick: () => setLock(!lock), title: t.resize.lock }, /* @__PURE__ */ React.createElement(Icon, { name: lock ? "lock" : "unlock", size: 16 })), /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.height), /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "text",
+      inputMode: "numeric",
+      value: measured ? h : "",
+      disabled: !measured,
+      placeholder: "\u2014",
+      onChange: (e) => {
+        const v = +e.target.value.replace(/\D/g, "") || 0;
+        setH(v);
+        if (lock && ratio) setW(lockedPartner(v, ratio, "height"));
+      }
+    }
+  )))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.fit), /* @__PURE__ */ React.createElement("div", { style: { display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 5 } }, t.resize.fits.map((name, i) => /* @__PURE__ */ React.createElement(FitButton, { key: i, label: name, tooltip: fitTooltips[i], active: fit === i, onClick: () => setFit(i) })))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.outputFormat), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ["JPG", "PNG", "WEBP"].map((fmt) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: fmt,
@@ -1160,12 +1182,9 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [cropState, setCropState] = React.useState({ x: 10, y: 10, w: 80, h: 80 });
   const [processing, setProcessing] = React.useState(false);
   const [errors, setErrors] = React.useState([]);
-  const [origDims, setOrigDims] = React.useState({ w: 0, h: 0 });
   const idx = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
-  React.useEffect(() => {
-    setOrigDims({ w: selectedFile?.w || 0, h: selectedFile?.h || 0 });
-  }, [selectedFile?.id, selectedFile?.w]);
+  const origDims = { w: selectedFile?.w || 0, h: selectedFile?.h || 0 };
   const fileUrl = useFileUrl(selectedFile);
   const ratios = t.crop.ratios;
   const frameRef = React.useRef(null);

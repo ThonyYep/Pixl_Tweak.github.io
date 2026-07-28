@@ -217,8 +217,8 @@ function FitButton({ label, tooltip, active, onClick }) {
 
 function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
-  const [w,           setW]           = React.useState(1280);
-  const [h,           setH]           = React.useState(720);
+  const [w,           setW]           = React.useState(0);
+  const [h,           setH]           = React.useState(0);
   const [lock,        setLock]        = React.useState(true);
   const [fit,         setFit]         = React.useState(0);
   const [upscale,     setUpscale]     = React.useState(false);
@@ -226,19 +226,28 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [transparent, setTransparent] = React.useState(true);
   const [processing,  setProcessing]  = React.useState(false);
   const [errors,      setErrors]      = React.useState([]);
-  const [origDims,    setOrigDims]    = React.useState({ w:0, h:0 });
-
   const idx          = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
   const fileUrl      = useFileUrl(selectedFile);
 
-  // App decodes each file once and patches w/h onto it — follow that instead
-  // of decoding a second time here.
+  // Read straight off the file. Held as its own state with a syncing effect,
+  // this was a copy whose dependency list was narrower than the data it
+  // copied — the kind of pair that drifts.
+  const origDims = { w: selectedFile?.w || 0, h: selectedFile?.h || 0 };
+  const measured = origDims.w > 0;
+
+  // Seed the output size once per file, when its size is actually known. App
+  // decodes in the background, so on a big queue the fields used to sit at a
+  // made-up 1280x720, accept a typed value, and then overwrite it when the
+  // decode landed. The fields are disabled until then instead.
+  const seeded = React.useRef(null);
   React.useEffect(() => {
-    const iw = selectedFile?.w || 0, ih = selectedFile?.h || 0;
-    setOrigDims({ w: iw, h: ih });
-    if (iw > 0) { setW(iw); setH(ih); }
-  }, [selectedFile?.id, selectedFile?.w]);
+    if (!measured) return;
+    const stamp = `${selectedFile.id}:${origDims.w}x${origDims.h}`;
+    if (seeded.current === stamp) return;
+    seeded.current = stamp;
+    setW(origDims.w); setH(origDims.h);
+  }, [selectedFile?.id, origDims.w, origDims.h, measured]);
 
   // The source image's aspect ratio — fixed, so the lock stays honest however
   // the fields are edited.
@@ -293,7 +302,8 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           <div className="dim-row">
             <div className="num-input">
               <small>{t.resize.width}</small>
-              <input type="text" inputMode="numeric" value={w} onChange={e => {
+              <input type="text" inputMode="numeric" value={measured ? w : ""}
+                     disabled={!measured} placeholder="—" onChange={e => {
                 const v = +e.target.value.replace(/\D/g, "") || 0; setW(v);
                 if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
               }} />
@@ -303,7 +313,8 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             </button>
             <div className="num-input">
               <small>{t.resize.height}</small>
-              <input type="text" inputMode="numeric" value={h} onChange={e => {
+              <input type="text" inputMode="numeric" value={measured ? h : ""}
+                     disabled={!measured} placeholder="—" onChange={e => {
                 const v = +e.target.value.replace(/\D/g, "") || 0; setH(v);
                 if (lock && ratio) setW(lockedPartner(v, ratio, "height"));
               }} />
@@ -824,14 +835,13 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [cropState,   setCropState]   = React.useState({ x:10, y:10, w:80, h:80 });
   const [processing,  setProcessing]  = React.useState(false);
   const [errors,      setErrors]      = React.useState([]);
-  const [origDims,    setOrigDims]    = React.useState({ w:0, h:0 });
-
   const idx          = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
 
-  React.useEffect(() => {
-    setOrigDims({ w: selectedFile?.w || 0, h: selectedFile?.h || 0 });
-  }, [selectedFile?.id, selectedFile?.w]);
+  // Derived, not mirrored. As state with a syncing effect this could lag the
+  // file it described, and here it feeds the rotated bounding box the crop
+  // overlay is laid out against.
+  const origDims = { w: selectedFile?.w || 0, h: selectedFile?.h || 0 };
   const fileUrl      = useFileUrl(selectedFile);
   const ratios       = t.crop.ratios;
 
