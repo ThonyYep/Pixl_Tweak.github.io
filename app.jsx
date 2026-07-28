@@ -329,7 +329,8 @@ function App() {
       setFiles(mapped);
       fillDims(mapped);
     } else {
-      setFiles(SAMPLE_FILES.slice(0, 5).map((f, i) => ({ ...f, id: i + 1 })));
+      // Generated on demand, then indistinguishable from a real upload.
+      makeSampleFiles().then(setFiles);
     }
     setMode("idle");
     setTab("convert");

@@ -260,13 +260,60 @@ window.Processor = {
   processCompress,
   processCrop
 };
-const SAMPLE_FILES = [
-  { id: 1, name: "sunset-dunes-2024.png", ext: "PNG", size: 482e4, w: 4032, h: 3024, palette: ["#ff8a5b", "#ffd16e", "#7a4a8a"] },
-  { id: 2, name: "studio-portrait-01.jpeg", ext: "JPEG", size: 614e4, w: 3e3, h: 4e3, palette: ["#f4d6c0", "#c98668", "#3a2a2a"] },
-  { id: 3, name: "logo-stamp-final.svg", ext: "SVG", size: 62400, w: 512, h: 512, palette: ["#1f2a4a", "#ff7a59", "#fbf3e4"] },
-  { id: 4, name: "lake-pano-morning.gif", ext: "GIF", size: 229e5, w: 7680, h: 2160, palette: ["#a9d4e8", "#f8e4b5", "#3c628a"] },
-  { id: 5, name: "product-mock-back.webp", ext: "WEBP", size: 48e4, w: 1600, h: 1600, palette: ["#bfa4ff", "#3a2f64", "#fcd3e2"] }
+const SAMPLE_SPECS = [
+  { name: "sunset-dunes-2024", w: 1600, h: 1200, mime: "image/png", palette: ["#ff8a5b", "#ffd16e", "#7a4a8a"] },
+  { name: "studio-portrait-01", w: 1200, h: 1600, mime: "image/jpeg", palette: ["#f4d6c0", "#c98668", "#3a2a2a"] },
+  { name: "logo-stamp-final", w: 512, h: 512, mime: "image/png", palette: ["#1f2a4a", "#ff7a59", "#fbf3e4"] },
+  { name: "lake-pano-morning", w: 2400, h: 675, mime: "image/jpeg", palette: ["#a9d4e8", "#f8e4b5", "#3c628a"] },
+  { name: "product-mock-back", w: 1200, h: 1200, mime: "image/webp", palette: ["#bfa4ff", "#3a2f64", "#fcd3e2"] }
 ];
+const MIME_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+function drawSample(w, h, [a, b, c]) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w;
+  canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, a);
+  grad.addColorStop(1, b);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(255,248,236,0.7)";
+  ctx.beginPath();
+  ctx.arc(w * 0.3, h * 0.37, Math.min(w, h) * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = c + "b0";
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.83);
+  ctx.lineTo(w * 0.33, h * 0.53);
+  ctx.lineTo(w * 0.57, h * 0.73);
+  ctx.lineTo(w * 0.8, h * 0.47);
+  ctx.lineTo(w, h * 0.67);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+  return canvas;
+}
+async function makeSampleFiles() {
+  return Promise.all(SAMPLE_SPECS.map(async (s, i) => {
+    const canvas = drawSample(s.w, s.h, s.palette);
+    const blob = await new Promise((r) => canvas.toBlob(r, s.mime, 0.92));
+    const filename = `${s.name}.${MIME_EXT[s.mime]}`;
+    canvas.width = canvas.height = 1;
+    return {
+      id: i + 1,
+      name: filename,
+      ext: MIME_EXT[s.mime].toUpperCase(),
+      size: blob.size,
+      // measured, like any other file
+      w: s.w,
+      h: s.h,
+      palette: s.palette,
+      fileObj: new File([blob], filename, { type: s.mime })
+    };
+  }));
+}
 const FORMATS = ["PNG", "JPG", "WEBP", "BMP", "PDF", "ICO"];
 const ALL_FORMATS = ["AVIF", "BMP", "GIF", "ICO", "JPG", "JPEG", "PNG", "SVG", "WEBP"];
 const DEFAULT_FORMAT = Processor.canEncode("image/webp") ? "WEBP" : "JPG";
@@ -518,7 +565,8 @@ window.ConvertTab = ConvertTab;
 window.DEFAULT_FORMAT = DEFAULT_FORMAT;
 window.errorMessage = errorMessage;
 window.ToggleRow = ToggleRow;
-window.SAMPLE_FILES = SAMPLE_FILES;
+window.makeSampleFiles = makeSampleFiles;
+window.SAMPLE_SPECS = SAMPLE_SPECS;
 window.ALL_FORMATS = ALL_FORMATS;
 window.formatBytes = formatBytes;
 window.Thumb = Thumb;
@@ -1679,6 +1727,24 @@ function brokenFile() {
       `200 KB budget gave ${big.blob.size} B but 40 KB gave ${small.blob.size} B`
     );
     assert(big.quality >= small.quality, "a looser budget chose a lower quality");
+  });
+  await test("the samples carry real bytes, not declared numbers", async () => {
+    const samples = await makeSampleFiles();
+    assert(samples.length === SAMPLE_SPECS.length, "wrong count");
+    for (const s2 of samples) {
+      assert(s2.fileObj instanceof File, `${s2.name} has no file`);
+      assert(s2.size === s2.fileObj.size, `${s2.name}: declared ${s2.size}, blob is ${s2.fileObj.size}`);
+      assert(s2.size > 0, `${s2.name} is empty`);
+      const ext = s2.name.split(".").pop();
+      const byMime = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[s2.fileObj.type];
+      assert(ext === byMime, `${s2.name} is ${s2.fileObj.type}`);
+      const bmp = await createImageBitmap(s2.fileObj);
+      assert(
+        bmp.width === s2.w && bmp.height === s2.h,
+        `${s2.name}: declared ${s2.w}x${s2.h}, decoded ${bmp.width}x${bmp.height}`
+      );
+      bmp.close();
+    }
   });
   await test("the aspect lock survives typing a number one digit at a time", () => {
     const ratio = 1600 / 900;

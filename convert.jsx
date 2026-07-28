@@ -1,12 +1,64 @@
 // convert.jsx — Convert tab content + file list + settings rail
 
-const SAMPLE_FILES = [
-  { id: 1, name: "sunset-dunes-2024.png",    ext: "PNG",  size: 4_820_000, w: 4032, h: 3024, palette: ["#ff8a5b","#ffd16e","#7a4a8a"] },
-  { id: 2, name: "studio-portrait-01.jpeg",  ext: "JPEG", size: 6_140_000, w: 3000, h: 4000, palette: ["#f4d6c0","#c98668","#3a2a2a"] },
-  { id: 3, name: "logo-stamp-final.svg",     ext: "SVG",  size: 62_400,    w: 512,  h: 512,  palette: ["#1f2a4a","#ff7a59","#fbf3e4"] },
-  { id: 4, name: "lake-pano-morning.gif",    ext: "GIF",  size: 22_900_000,w: 7680, h: 2160, palette: ["#a9d4e8","#f8e4b5","#3c628a"] },
-  { id: 5, name: "product-mock-back.webp",   ext: "WEBP", size: 480_000,   w: 1600, h: 1600, palette: ["#bfa4ff","#3a2f64","#fcd3e2"] },
+// Samples are generated for real, not described. The old list declared sizes
+// and dimensions that nothing ever produced — "22.9 MB", 7680x2160 — while the
+// engine quietly substituted a small gradient, so the demo reported saving
+// 34 MB that never existed. Every number the app shows has to be measured, and
+// that includes this one, so these are rendered, encoded, and then treated as
+// ordinary uploads. Formats are ones canvas can actually write.
+const SAMPLE_SPECS = [
+  { name: "sunset-dunes-2024",   w: 1600, h: 1200, mime: "image/png",  palette: ["#ff8a5b","#ffd16e","#7a4a8a"] },
+  { name: "studio-portrait-01",  w: 1200, h: 1600, mime: "image/jpeg", palette: ["#f4d6c0","#c98668","#3a2a2a"] },
+  { name: "logo-stamp-final",    w:  512, h:  512, mime: "image/png",  palette: ["#1f2a4a","#ff7a59","#fbf3e4"] },
+  { name: "lake-pano-morning",   w: 2400, h:  675, mime: "image/jpeg", palette: ["#a9d4e8","#f8e4b5","#3c628a"] },
+  { name: "product-mock-back",   w: 1200, h: 1200, mime: "image/webp", palette: ["#bfa4ff","#3a2f64","#fcd3e2"] },
 ];
+
+const MIME_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
+
+function drawSample(w, h, [a, b, c]) {
+  const canvas = document.createElement("canvas");
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext("2d");
+  const grad = ctx.createLinearGradient(0, 0, w, h);
+  grad.addColorStop(0, a); grad.addColorStop(1, b);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+  ctx.fillStyle = "rgba(255,248,236,0.7)";
+  ctx.beginPath();
+  ctx.arc(w * 0.3, h * 0.37, Math.min(w, h) * 0.1, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = c + "b0";
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.83);
+  ctx.lineTo(w * 0.33, h * 0.53);
+  ctx.lineTo(w * 0.57, h * 0.73);
+  ctx.lineTo(w * 0.80, h * 0.47);
+  ctx.lineTo(w, h * 0.67);
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fill();
+  return canvas;
+}
+
+async function makeSampleFiles() {
+  return Promise.all(SAMPLE_SPECS.map(async (s, i) => {
+    const canvas = drawSample(s.w, s.h, s.palette);
+    const blob = await new Promise(r => canvas.toBlob(r, s.mime, 0.92));
+    const filename = `${s.name}.${MIME_EXT[s.mime]}`;
+    canvas.width = canvas.height = 1;
+    return {
+      id: i + 1,
+      name: filename,
+      ext: MIME_EXT[s.mime].toUpperCase(),
+      size: blob.size,          // measured, like any other file
+      w: s.w, h: s.h,
+      palette: s.palette,
+      fileObj: new File([blob], filename, { type: s.mime }),
+    };
+  }));
+}
 
 // Output formats we can actually encode. GIF and TIFF are absent on purpose:
 // canvas can't produce either, and the old code shipped WEBP/PNG bytes under
@@ -486,7 +538,8 @@ window.ConvertTab     = ConvertTab;
 window.DEFAULT_FORMAT = DEFAULT_FORMAT;
 window.errorMessage   = errorMessage;
 window.ToggleRow      = ToggleRow;
-window.SAMPLE_FILES = SAMPLE_FILES;
+window.makeSampleFiles = makeSampleFiles;
+window.SAMPLE_SPECS  = SAMPLE_SPECS;
 window.ALL_FORMATS  = ALL_FORMATS;
 window.formatBytes  = formatBytes;
 window.Thumb        = Thumb;

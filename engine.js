@@ -68,35 +68,8 @@ const ENGINE = (() => {
     return canvas;
   }
 
-  function sampleCanvas(w, h, palette) {
-    const canvas = makeCanvas(w || 800, h || 600);
-    const ctx = ctx2d(canvas);
-    const [a, b, c] = palette || ["#ff8a5b", "#ffd16e", "#7a4a8a"];
-    const grad = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
-    grad.addColorStop(0, a); grad.addColorStop(1, b);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = "rgba(255,248,236,0.7)";
-    ctx.beginPath();
-    ctx.arc(canvas.width * 0.3, canvas.height * 0.37, Math.min(canvas.width, canvas.height) * 0.1, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.fillStyle = c + "b0";
-    ctx.beginPath();
-    ctx.moveTo(0, canvas.height * 0.83);
-    ctx.lineTo(canvas.width * 0.33, canvas.height * 0.53);
-    ctx.lineTo(canvas.width * 0.57, canvas.height * 0.73);
-    ctx.lineTo(canvas.width * 0.80, canvas.height * 0.47);
-    ctx.lineTo(canvas.width, canvas.height * 0.67);
-    ctx.lineTo(canvas.width, canvas.height);
-    ctx.lineTo(0, canvas.height);
-    ctx.closePath();
-    ctx.fill();
-    return canvas;
-  }
-
-  const sourceCanvas = file => file.blob
-    ? decodeToCanvas(file.blob)
-    : Promise.resolve(sampleCanvas(file.w || 800, file.h || 600, file.palette));
+  // Every file reaching the engine has real bytes, samples included.
+  const sourceCanvas = file => decodeToCanvas(file.blob);
 
   function releaseCanvas(canvas) { canvas.width = 1; canvas.height = 1; }
 
@@ -424,7 +397,7 @@ const ENGINE = (() => {
     return { outputs, bytes, quality, met };
   }
 
-  return { ctx2d, makeCanvas, decodeToCanvas, sampleCanvas, sourceCanvas, releaseCanvas,
+  return { ctx2d, makeCanvas, decodeToCanvas, sourceCanvas, releaseCanvas,
            preShrink, resizeContain, resizeCanvas, posterizeCanvas, encodeBMP, encodeICO,
            canvasToBlob, encodeToTargetSize, cropRotate, outputName, runOne,
            MAX_COMPRESS_FORMATS };

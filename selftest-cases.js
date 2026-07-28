@@ -457,6 +457,26 @@ await test("higher budgets never produce smaller files", async () => {
   assert(big.quality >= small.quality, "a looser budget chose a lower quality");
 });
 
+// ── Sample files are files ─────────────────────────────────────────────
+await test("the samples carry real bytes, not declared numbers", async () => {
+  const samples = await makeSampleFiles();
+  assert(samples.length === SAMPLE_SPECS.length, "wrong count");
+  for (const s of samples) {
+    assert(s.fileObj instanceof File, `${s.name} has no file`);
+    assert(s.size === s.fileObj.size, `${s.name}: declared ${s.size}, blob is ${s.fileObj.size}`);
+    assert(s.size > 0, `${s.name} is empty`);
+    // the extension has to match what was actually encoded
+    const ext = s.name.split(".").pop();
+    const byMime = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" }[s.fileObj.type];
+    assert(ext === byMime, `${s.name} is ${s.fileObj.type}`);
+    // and the declared dimensions have to be the real ones
+    const bmp = await createImageBitmap(s.fileObj);
+    assert(bmp.width === s.w && bmp.height === s.h,
+      `${s.name}: declared ${s.w}x${s.h}, decoded ${bmp.width}x${bmp.height}`);
+    bmp.close();
+  }
+});
+
 // ── Aspect lock ────────────────────────────────────────────────────────
 await test("the aspect lock survives typing a number one digit at a time", () => {
   const ratio = 1600 / 900;                       // 16:9
