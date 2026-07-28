@@ -342,7 +342,7 @@ function App() {
 
   function mapFile(f, i) {
     return {
-      id: Date.now() + i, name: f.name,
+      id: nextFileId(), name: f.name,
       ext: (f.name.split(".").pop() || "").toUpperCase(),
       size: f.size, w: 0, h: 0,
       palette: PALETTES[i % PALETTES.length],

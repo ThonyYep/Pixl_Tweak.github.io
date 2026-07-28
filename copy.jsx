@@ -123,8 +123,6 @@ const COPY = {
     },
 
     common: {
-      go: "Start",
-      ready: "Ready",
       saved: "saved",
     },
 
@@ -257,8 +255,6 @@ const COPY = {
     },
 
     common: {
-      go: "Iniciar",
-      ready: "Listo",
       saved: "ahorrados",
     },
 

@@ -14,6 +14,13 @@ const SAMPLE_SPECS = [
   { name: "product-mock-back",   w: 1200, h: 1200, mime: "image/webp", palette: ["#bfa4ff","#3a2f64","#fcd3e2"] },
 ];
 
+// Ids key the progress map, the error map, the savings denominator and React's
+// list reconciliation, so two files must never share one. Date.now() + index
+// did: five files dropped at t and three added at t+2ms produced ids
+// t+2, t+3, t+4 twice over. A counter cannot overlap and needs no clock.
+let _fileId = 0;
+const nextFileId = () => ++_fileId;
+
 const MIME_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 
 function drawSample(w, h, [a, b, c]) {
@@ -49,7 +56,7 @@ async function makeSampleFiles() {
     const filename = `${s.name}.${MIME_EXT[s.mime]}`;
     canvas.width = canvas.height = 1;
     return {
-      id: i + 1,
+      id: nextFileId(),
       name: filename,
       ext: MIME_EXT[s.mime].toUpperCase(),
       size: blob.size,          // measured, like any other file

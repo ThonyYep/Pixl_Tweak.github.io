@@ -269,6 +269,8 @@ const SAMPLE_SPECS = [
   { name: "lake-pano-morning", w: 2400, h: 675, mime: "image/jpeg", palette: ["#a9d4e8", "#f8e4b5", "#3c628a"] },
   { name: "product-mock-back", w: 1200, h: 1200, mime: "image/webp", palette: ["#bfa4ff", "#3a2f64", "#fcd3e2"] }
 ];
+let _fileId = 0;
+const nextFileId = () => ++_fileId;
 const MIME_EXT = { "image/png": "png", "image/jpeg": "jpg", "image/webp": "webp" };
 function drawSample(w, h, [a, b, c]) {
   const canvas = document.createElement("canvas");
@@ -304,7 +306,7 @@ async function makeSampleFiles() {
     const filename = `${s.name}.${MIME_EXT[s.mime]}`;
     canvas.width = canvas.height = 1;
     return {
-      id: i + 1,
+      id: nextFileId(),
       name: filename,
       ext: MIME_EXT[s.mime].toUpperCase(),
       size: blob.size,
@@ -2091,6 +2093,19 @@ function brokenFile() {
       wasm.size < browser.size,
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
+  });
+  await test("no two files ever share an id", async () => {
+    const a = await makeSampleFiles();
+    const b = await makeSampleFiles();
+    const ids = [...a, ...b].map((f) => f.id);
+    assert(
+      new Set(ids).size === ids.length,
+      `two loads of the samples produced repeats: ${ids.join(",")}`
+    );
+    assert(ids.every((id) => Number.isInteger(id)), "an id is not an integer");
+    const burst = Array.from({ length: 500 }, () => nextFileId());
+    assert(new Set(burst).size === 500, "500 ids in a tight loop were not unique");
+    assert(Math.min(...burst) > Math.max(...ids), "ids went backwards");
   });
   await test("the keyboard and the pointer land on the same crop rectangle", async () => {
     const ib = { x: 0, y: 0, w: 100, h: 100 };

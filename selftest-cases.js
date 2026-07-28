@@ -720,6 +720,25 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("no two files ever share an id", async () => {
+  // Ids key the progress map, the error map, the savings denominator and
+  // React's list reconciliation. mapFile used Date.now() + index, so five
+  // files dropped at t and three added 2 ms later both claimed t+2, t+3, t+4.
+  // The samples had their own scheme starting at 1 and repeated it on every
+  // load.
+  const a = await makeSampleFiles();
+  const b = await makeSampleFiles();
+  const ids = [...a, ...b].map(f => f.id);
+  assert(new Set(ids).size === ids.length,
+    `two loads of the samples produced repeats: ${ids.join(",")}`);
+  assert(ids.every(id => Number.isInteger(id)), "an id is not an integer");
+
+  // A run of ids taken back to back inside one millisecond must still differ.
+  const burst = Array.from({ length: 500 }, () => nextFileId());
+  assert(new Set(burst).size === 500, "500 ids in a tight loop were not unique");
+  assert(Math.min(...burst) > Math.max(...ids), "ids went backwards");
+});
+
 await test("the keyboard and the pointer land on the same crop rectangle", async () => {
   // Both routes go through nextRect; this fails if one of them grows its own
   // clamping. Deltas are container percentages either way.
