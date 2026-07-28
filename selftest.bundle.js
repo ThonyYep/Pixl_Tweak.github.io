@@ -245,6 +245,7 @@ window.Processor = {
   canvasToBlob: ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   hasQualityKnob: ENGINE.hasQualityKnob,
+  ICO_DEFAULT_SIZES: ENGINE.ICO_DEFAULT_SIZES,
   resizeCanvas: ENGINE.resizeCanvas,
   resizeTargetDims: ENGINE.resizeTargetDims,
   posterizeCanvas: ENGINE.posterizeCanvas,
@@ -416,7 +417,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const hasQuality = FMT_HAS_QUALITY.has(fmt);
   const hasAlpha = FMT_HAS_ALPHA.has(fmt);
   const hasMaxCompress = fmt === "JPG" || fmt === "PNG";
-  const icoSizes = settings.icoSizes || [16, 32, 48, 256];
+  const icoSizes = settings.icoSizes || [];
   const icoKeepOrig = settings.icoKeepOriginal !== false;
   const mergePDF = !!settings.mergePDF;
   return /* @__PURE__ */ React.createElement("div", { className: "file-stage" }, /* @__PURE__ */ React.createElement("div", null, mode === "converting" && /* @__PURE__ */ React.createElement("div", { className: "banner" }, /* @__PURE__ */ React.createElement("div", { className: "spin" }), /* @__PURE__ */ React.createElement("div", { className: "text", style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", null, /* @__PURE__ */ React.createElement("strong", null, t.convert.converting), " \xB7 ", completed, "/", files.length, elapsed > 0 && /* @__PURE__ */ React.createElement("span", { style: { marginLeft: 8, fontFamily: "JetBrains Mono, monospace", fontSize: 12, opacity: 0.75 } }, elapsed, "s ", t.convert.elapsed)), /* @__PURE__ */ React.createElement("div", { className: "small" }, t.convert.convertingSub)), /* @__PURE__ */ React.createElement("div", { className: "bar", style: { flex: 1, maxWidth: 220 } }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: overall + "%" } })), /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => Processor.cancelJob() }, /* @__PURE__ */ React.createElement(Icon, { name: "x", size: 14 }), " ", t.convert.cancel)), mode === "done" && /* @__PURE__ */ React.createElement("div", { className: "done-banner" + (allFailed ? " failed" : "") }, /* @__PURE__ */ React.createElement("div", { className: "check" }, /* @__PURE__ */ React.createElement(Icon, { name: allFailed ? "x" : "check", size: 20, stroke: 2.6 })), /* @__PURE__ */ React.createElement("div", { style: { flex: 1 } }, /* @__PURE__ */ React.createElement("div", { style: { fontWeight: 700, fontSize: 15 } }, errors.length > 0 ? t.convert.failTitle : t.convert.doneTitle), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 13, opacity: 0.85 } }, stopped ? t.convert.cancelled.replace("{n}", (outSizes || []).length).replace("{total}", files.length) : errors.length > 0 ? t.convert.failSub.replace("{n}", errors.length).replace("{total}", files.length) : doneMessage(t, files.length - errors.length, grew, grew ? -delta : saved))), /* @__PURE__ */ React.createElement("button", { className: "btn ghost", onClick: () => setMode("idle") }, /* @__PURE__ */ React.createElement(Icon, { name: "rotate", size: 14 }), " ", t.convert.again), !allFailed && /* @__PURE__ */ React.createElement("span", { style: { display: "flex", alignItems: "center", gap: 5, fontSize: 12, color: "var(--ink-3)", fontWeight: 500 } }, /* @__PURE__ */ React.createElement(Icon, { name: "folder", size: 13 }), " ", t.convert.downloads, " \u2193")), /* @__PURE__ */ React.createElement("div", { className: "file-list" }, /* @__PURE__ */ React.createElement("div", { className: "head", style: { display: "flex", alignItems: "center", justifyContent: "space-between" } }, /* @__PURE__ */ React.createElement("h3", { style: { margin: 0 } }, files.length, " ", t.convert.filesIn), /* @__PURE__ */ React.createElement(
@@ -483,6 +484,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
     {
       key: fmt2,
       className: "opt " + (settings.format === fmt2 ? "on" : ""),
+      "aria-pressed": settings.format === fmt2,
       onClick: () => setSettings({ ...settings, format: fmt2 })
     },
     fmt2
@@ -559,7 +561,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
       className: "btn primary",
       onClick: onStart,
       style: { justifyContent: "center" },
-      disabled: mode === "converting" || files.length === 0
+      disabled: mode === "converting" || files.length === 0 || isICO && icoSizes.length === 0
     },
     /* @__PURE__ */ React.createElement(Icon, { name: "sparkle", size: 16 }),
     mode === "converting" ? t.convert.converting : t.convert.go

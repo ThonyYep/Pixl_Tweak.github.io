@@ -277,7 +277,9 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const hasAlpha    = FMT_HAS_ALPHA.has(fmt);
   // Only JPG and PNG have a WASM encoder wired up.
   const hasMaxCompress = fmt === "JPG" || fmt === "PNG";
-  const icoSizes    = settings.icoSizes    || [16,32,48,256];
+  // No invented default here — the state carries the real one, and a second
+  // copy is what let the rail disagree with the file.
+  const icoSizes    = settings.icoSizes    || [];
   const icoKeepOrig = settings.icoKeepOriginal !== false;
   const mergePDF    = !!settings.mergePDF;
 
@@ -409,6 +411,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             {FORMATS.map(fmt => (
               <button key={fmt}
                 className={"opt " + (settings.format === fmt ? "on" : "")}
+                aria-pressed={settings.format === fmt}
                 onClick={() => setSettings({ ...settings, format: fmt })}>
                 {fmt}
               </button>
@@ -544,9 +547,12 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
         </div>
 
         <div className="actions">
+          {/* Deselecting every ICO size would otherwise reach runOne's own
+              fallback and produce the four default sizes anyway. */}
           <button className="btn primary" onClick={onStart}
             style={{ justifyContent:"center" }}
-            disabled={mode === "converting" || files.length === 0}>
+            disabled={mode === "converting" || files.length === 0
+                      || (isICO && icoSizes.length === 0)}>
             <Icon name="sparkle" size={16} />
             {mode === "converting" ? t.convert.converting : t.convert.go}
           </button>

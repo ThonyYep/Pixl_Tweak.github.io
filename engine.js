@@ -376,6 +376,12 @@ const ENGINE = (() => {
     return out;
   }
 
+  // The four sizes Windows actually asks for. Exported because the convert tab
+  // seeds its checkboxes from this: the tab used to start with an empty list
+  // while runOne quietly substituted these, so the rail showed nothing selected
+  // and the .ico came out with four entries.
+  const ICO_DEFAULT_SIZES = [16, 32, 48, 256];
+
   const EXT = { JPG:"jpg", PNG:"png", WEBP:"webp", BMP:"bmp", PDF:"pdf", ICO:"ico" };
   const outputName = (name, format) =>
     name.replace(/\.[^/.]+$/, "") + "." + (EXT[format] || format.toLowerCase());
@@ -389,7 +395,7 @@ const ENGINE = (() => {
     let outputs = [], quality = s.quality, met = true;
 
     if (op === "convert" && s.format === "ICO") {
-      const sizes = (s.icoSizes && s.icoSizes.length ? s.icoSizes : [16, 32, 48, 256])
+      const sizes = (s.icoSizes && s.icoSizes.length ? s.icoSizes : ICO_DEFAULT_SIZES)
         .filter(v => v <= 256);
       const sized = [];
       for (let i = 0; i < sizes.length; i++) {
@@ -451,6 +457,7 @@ const ENGINE = (() => {
   return { ctx2d, makeCanvas, decodeToCanvas, sourceCanvas, releaseCanvas,
            preShrink, resizeContain, resizeCanvas, resizeTargetDims, posterizeCanvas, encodeBMP, encodeICO,
            canvasToBlob, encodeToTargetSize, hasQualityKnob, cropRotate, outputName, runOne,
+           ICO_DEFAULT_SIZES,
            MAX_COMPRESS_FORMATS };
 })();
 

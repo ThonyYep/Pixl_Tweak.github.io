@@ -276,6 +276,7 @@ window.Processor = {
   canvasToBlob:       ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   hasQualityKnob:     ENGINE.hasQualityKnob,
+  ICO_DEFAULT_SIZES:  ENGINE.ICO_DEFAULT_SIZES,
   resizeCanvas:       ENGINE.resizeCanvas,
   resizeTargetDims:   ENGINE.resizeTargetDims,
   posterizeCanvas:    ENGINE.posterizeCanvas,

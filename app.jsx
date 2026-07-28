@@ -293,7 +293,7 @@ function App() {
     quality:        82,
     transparent:    true,
     icoKeepOriginal: true,
-    icoSizes:       [],
+    icoSizes:       Processor.ICO_DEFAULT_SIZES,
   });
 
   // The conversion outlives the tab it was started from, so its state lives
