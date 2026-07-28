@@ -111,7 +111,16 @@ function stop(jobId, discard) {
   if (!state) return;
   state.cancelled = true;
   state.discard = discard;
-  if (CAN_OFFLOAD) worker().postMessage({ type: "cancel", jobId });
+  // worker() returns null once the worker has died, and this guarded only on
+  // CAN_OFFLOAD, so cancelling after a worker death threw on null.postMessage.
+  // The throw escaped through supersede(), which runs at the top of every
+  // runJob — so starting a second tool while a job was in flight died before
+  // the new job was created, and the button did nothing at all.
+  //
+  // There is nothing to cancel in that case anyway: the job already fell back
+  // to this thread, where state.cancelled above is what stops it.
+  const w = CAN_OFFLOAD ? worker() : null;
+  if (w) w.postMessage({ type: "cancel", jobId });
 }
 
 // What the Cancel buttons call: stop everything still running, and keep the

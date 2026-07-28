@@ -91,7 +91,8 @@ function stop(jobId, discard) {
   if (!state) return;
   state.cancelled = true;
   state.discard = discard;
-  if (CAN_OFFLOAD) worker().postMessage({ type: "cancel", jobId });
+  const w = CAN_OFFLOAD ? worker() : null;
+  if (w) w.postMessage({ type: "cancel", jobId });
 }
 function cancelJob() {
   for (const jobId of _inflight.keys()) stop(jobId, false);
