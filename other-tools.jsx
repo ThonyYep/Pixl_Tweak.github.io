@@ -415,8 +415,10 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const fileUrl      = useFileUrl(selectedFile);
 
   // PNG ignores the quality argument entirely, so there is no knob for a size
-  // search to turn — the mode only makes sense for the lossy formats.
-  const sizeModeAvailable = format !== "PNG";
+  // search to turn. Asked of the engine rather than restated here: the engine
+  // is what actually skips the search, and a hardcoded list beside it is the
+  // kind of pair that drifts.
+  const sizeModeAvailable = Processor.hasQualityKnob(format);
   const inSizeMode = mode === "size" && sizeModeAvailable;
   const targetBytes = inSizeMode ? Math.max(1, targetNum) * (targetUnit === "MB" ? 1e6 : 1e3) : 0;
 

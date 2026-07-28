@@ -236,6 +236,12 @@ const ENGINE = (() => {
     return codecs[name];
   }
   const MAX_COMPRESS_FORMATS = new Set(["JPG", "PNG"]);
+  // Formats whose encoder actually reads a quality argument. PNG's does not —
+  // canvas ignores the value and OxiPNG is never handed one. The compress tab
+  // hides its target-size mode off this, and encodeToTargetSize skips the
+  // search off this, so the two cannot disagree.
+  const QUALITY_FORMATS = new Set(["JPG", "WEBP"]);
+  const hasQualityKnob = format => QUALITY_FORMATS.has(format);
 
   async function encodeMax(canvas, format, quality) {
     const id = ctx2d(canvas).getImageData(0, 0, canvas.width, canvas.height);
@@ -322,6 +328,15 @@ const ENGINE = (() => {
   // the only way to know is to encode and look. Binary search settles it in
   // about seven encodes. met:false means even quality 10 overshot.
   async function encodeToTargetSize(canvas, format, targetBytes, transparent, onStep, maxCompress) {
+    // There is nothing to search when quality does nothing. PNG returned
+    // byte-identical output for all seven probes and then reported "quality
+    // 100" as though it had picked one; with OxiPNG on, that was 6.3 s of work
+    // for a 0.77 s job. quality:null tells the caller not to claim a number.
+    if (!QUALITY_FORMATS.has(format)) {
+      const blob = await canvasToBlob(canvas, format, 100, transparent, maxCompress);
+      if (onStep) onStep(1, null, blob.size);
+      return { blob, quality: null, steps: 1, met: blob.size <= targetBytes };
+    }
     let lo = 10, hi = 100, best = null, steps = 0;
     while (lo <= hi) {
       const q = Math.round((lo + hi) / 2);
@@ -435,7 +450,7 @@ const ENGINE = (() => {
 
   return { ctx2d, makeCanvas, decodeToCanvas, sourceCanvas, releaseCanvas,
            preShrink, resizeContain, resizeCanvas, resizeTargetDims, posterizeCanvas, encodeBMP, encodeICO,
-           canvasToBlob, encodeToTargetSize, cropRotate, outputName, runOne,
+           canvasToBlob, encodeToTargetSize, hasQualityKnob, cropRotate, outputName, runOne,
            MAX_COMPRESS_FORMATS };
 })();
 

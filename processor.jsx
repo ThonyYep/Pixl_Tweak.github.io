@@ -275,6 +275,7 @@ window.Processor = {
   // engine, re-exported so callers and tests reach one implementation
   canvasToBlob:       ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
+  hasQualityKnob:     ENGINE.hasQualityKnob,
   resizeCanvas:       ENGINE.resizeCanvas,
   resizeTargetDims:   ENGINE.resizeTargetDims,
   posterizeCanvas:    ENGINE.posterizeCanvas,

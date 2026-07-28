@@ -244,6 +244,7 @@ window.Processor = {
   // engine, re-exported so callers and tests reach one implementation
   canvasToBlob: ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
+  hasQualityKnob: ENGINE.hasQualityKnob,
   resizeCanvas: ENGINE.resizeCanvas,
   resizeTargetDims: ENGINE.resizeTargetDims,
   posterizeCanvas: ENGINE.posterizeCanvas,
@@ -892,7 +893,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const idx = Math.min(selectedIdx, Math.max(0, files.length - 1));
   const selectedFile = files[idx] || null;
   const fileUrl = useFileUrl(selectedFile);
-  const sizeModeAvailable = format !== "PNG";
+  const sizeModeAvailable = Processor.hasQualityKnob(format);
   const inSizeMode = mode === "size" && sizeModeAvailable;
   const targetBytes = inSizeMode ? Math.max(1, targetNum) * (targetUnit === "MB" ? 1e6 : 1e3) : 0;
   const PRESET_QUALITY = [60, 50, 88];
@@ -2023,6 +2024,38 @@ function brokenFile() {
       wasm.size < browser.size,
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
+  });
+  await test("a target-size search does not run on a format with no quality knob", async () => {
+    const c = busyCanvas(300);
+    const seen = [];
+    const r = await P.encodeToTargetSize(
+      c,
+      "PNG",
+      5e6,
+      true,
+      (n, q, size) => seen.push(size),
+      false
+    );
+    assert(r.steps === 1, `PNG took ${r.steps} encodes to search a constant`);
+    assert(seen.length === 1, `reported ${seen.length} steps to the UI`);
+    assert(r.quality === null, `claimed quality ${r.quality} for a format that has none`);
+    assert(r.met === true, "a 5 MB budget must fit a small PNG");
+  });
+  await test("a target-size search still runs where quality does something", async () => {
+    const c = busyCanvas(300);
+    const sizes = [];
+    const r = await P.encodeToTargetSize(
+      c,
+      "JPG",
+      4e3,
+      true,
+      (n, q, size) => sizes.push(size),
+      false
+    );
+    assert(r.steps > 1, "JPG must actually search");
+    assert(new Set(sizes).size > 1, "every JPG probe came back the same size");
+    assert(typeof r.quality === "number", "JPG must report the quality it chose");
+    if (r.met) assert(r.blob.size <= 4e3, `met:true but ${r.blob.size} B is over budget`);
   });
   await test("the resize preview reports the size the resize actually produces", async () => {
     const src = solidCanvas(1600, 900);

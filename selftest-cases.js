@@ -720,6 +720,31 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("a target-size search does not run on a format with no quality knob", async () => {
+  // PNG ignores the quality argument, so the binary search re-encoded the same
+  // bytes seven times and then reported "quality 100" as if it had chosen one.
+  // With OxiPNG on that was 6.3 s of work for a 0.77 s job.
+  const c = busyCanvas(300);
+  const seen = [];
+  const r = await P.encodeToTargetSize(c, "PNG", 5_000_000, true,
+    (n, q, size) => seen.push(size), false);
+  assert(r.steps === 1, `PNG took ${r.steps} encodes to search a constant`);
+  assert(seen.length === 1, `reported ${seen.length} steps to the UI`);
+  assert(r.quality === null, `claimed quality ${r.quality} for a format that has none`);
+  assert(r.met === true, "a 5 MB budget must fit a small PNG");
+});
+
+await test("a target-size search still runs where quality does something", async () => {
+  const c = busyCanvas(300);
+  const sizes = [];
+  const r = await P.encodeToTargetSize(c, "JPG", 4000, true,
+    (n, q, size) => sizes.push(size), false);
+  assert(r.steps > 1, "JPG must actually search");
+  assert(new Set(sizes).size > 1, "every JPG probe came back the same size");
+  assert(typeof r.quality === "number", "JPG must report the quality it chose");
+  if (r.met) assert(r.blob.size <= 4000, `met:true but ${r.blob.size} B is over budget`);
+});
+
 await test("the resize preview reports the size the resize actually produces", async () => {
   // The header echoed the typed numbers while runOne clamped them, so
   // "1600×900 → 800×1200" shipped an 800×900 file. Both sides call
