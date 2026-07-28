@@ -106,6 +106,33 @@ function ratioLockedRect(type, sc, ib, targetR, want) {
   return { x, y, w, h };
 }
 
+// Where a crop rectangle lands after a nudge of dx/dy, both in container
+// percentages. The pointer's dx/dy come from mouse travel, the keyboard's from
+// an arrow key — one solver so the two input routes cannot clamp differently.
+function nextRect(type, sc, ib, targetR, dx, dy) {
+  let { x, y, w, h } = sc;
+
+  if (type === "move") {
+    return { x: Math.min(Math.max(x + dx, ib.x), ib.x + ib.w - w),
+             y: Math.min(Math.max(y + dy, ib.y), ib.y + ib.h - h), w, h };
+  }
+
+  // ── Raw resize per handle ────────────────────────────────────────────────
+  if (type==="tl"||type==="ml"||type==="bl") { const nw=Math.max(5,w-dx); x+=w-nw; w=nw; }
+  if (type==="tr"||type==="mr"||type==="br") { w=Math.max(5,w+dx); }
+  if (type==="tl"||type==="tc"||type==="tr") { const nh=Math.max(5,h-dy); y+=h-nh; h=nh; }
+  if (type==="bl"||type==="bc"||type==="br") { h=Math.max(5,h+dy); }
+
+  if (targetR) return ratioLockedRect(type, sc, ib, targetR, { w, h });
+
+  // ── Free mode — clamp to image bounds ────────────────────────────────────
+  if (x < ib.x)             { w -= ib.x - x;       x = ib.x; }
+  if (y < ib.y)             { h -= ib.y - y;       y = ib.y; }
+  if (x + w > ib.x + ib.w) { w  = ib.x + ib.w - x; }
+  if (y + h > ib.y + ib.h) { h  = ib.y + ib.h - y; }
+  return { x, y, w: Math.max(5, w), h: Math.max(5, h) };
+}
+
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return (
@@ -682,7 +709,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 
 const ASPECT_NUMS = [null, 1, 4/3, 16/9, 3/4, 9/16];
 
-function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
+function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange, keyboardLabel }) {
   const containerRef  = React.useRef(null);
   const imgBoundsRef  = React.useRef({ x:0, y:0, w:100, h:100 }); // image position in % of container
   const [crop, setCrop] = React.useState({ x:0, y:0, w:100, h:100 });
@@ -757,38 +784,9 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
     const onMove = ev => {
       if (ev.cancelable) ev.preventDefault();
       const { x: px, y: py } = getPoint(ev);
-      const dx = (px - ox) / rect.width  * 100;
-      const dy = (py - oy) / rect.height * 100;
-      let { x, y, w, h } = { ...sc };
-      const ib = imgBoundsRef.current;
-      const targetR = asp ? asp / cAsp : null;
-
-      if (type === "move") {
-        x = Math.max(ib.x, Math.min(ib.x + ib.w - w, x + dx));
-        y = Math.max(ib.y, Math.min(ib.y + ib.h - h, y + dy));
-        updateCrop({ x, y, w, h });
-        return;
-      }
-
-      // ── Raw resize per handle ─────────────────────────────────────────────
-      if (type==="tl"||type==="ml"||type==="bl") { const nw=Math.max(5,w-dx); x+=w-nw; w=nw; }
-      if (type==="tr"||type==="mr"||type==="br") { w=Math.max(5,w+dx); }
-      if (type==="tl"||type==="tc"||type==="tr") { const nh=Math.max(5,h-dy); y+=h-nh; h=nh; }
-      if (type==="bl"||type==="bc"||type==="br") { h=Math.max(5,h+dy); }
-
-      if (targetR) {
-        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR, { w, h }));
-      } else {
-        // ── Free mode — clamp to image bounds ────────────────────────────────
-        if (x < ib.x)             { w -= ib.x - x;       x = ib.x; }
-        if (y < ib.y)             { h -= ib.y - y;       y = ib.y; }
-        if (x + w > ib.x + ib.w) { w  = ib.x + ib.w - x; }
-        if (y + h > ib.y + ib.h) { h  = ib.y + ib.h - y; }
-        w = Math.max(5, w);
-        h = Math.max(5, h);
-      }
-
-      updateCrop({ x, y, w, h });
+      updateCrop(nextRect(type, sc, imgBoundsRef.current, asp ? asp / cAsp : null,
+                          (px - ox) / rect.width  * 100,
+                          (py - oy) / rect.height * 100));
     };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
@@ -801,6 +799,29 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend",  onUp);
   };
+
+  // The eight handles are pointer-only, which left framing — the one thing this
+  // tool is for — impossible without a mouse. Arrows move the box, Shift+arrows
+  // resize it from the bottom-right, the same corner the "br" handle drags.
+  // Both go through nextRect, so the keyboard obeys the same bounds as a drag.
+  const KEY_DELTA = { ArrowLeft:[-1,0], ArrowRight:[1,0], ArrowUp:[0,-1], ArrowDown:[0,1] };
+
+  function onKeyDown(e) {
+    const d = KEY_DELTA[e.key];
+    if (!d) return;
+    const el = containerRef.current; if (!el) return;
+    e.preventDefault();                 // otherwise the page scrolls instead
+    const rect = el.getBoundingClientRect();
+    const asp  = ASPECT_NUMS[ratio];
+    const targetR = asp ? asp / (rect.width / rect.height) : null;
+    const step = e.altKey ? 0.5 : 2;    // Alt for a finer nudge
+    let [dx, dy] = [d[0] * step, d[1] * step];
+    // With a ratio locked the corner solver takes its size from the width, so
+    // a vertical key would otherwise do nothing. Convert it to the width
+    // change that produces the same height change.
+    if (e.shiftKey && targetR && dx === 0) { dx = dy * targetR; dy = 0; }
+    updateCrop(nextRect(e.shiftKey ? "br" : "move", crop, imgBoundsRef.current, targetR, dx, dy));
+  }
 
   const hs = { position:"absolute", width:10, height:10, background:"white", border:"1.5px solid rgba(0,0,0,.35)", borderRadius:2, zIndex:2 };
   const br = "var(--radius-lg,12px)";
@@ -821,7 +842,12 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
 
       {/* ── Crop selection box + handles (not clipped, handles can bleed) ── */}
       <div
+        tabIndex={0}
+        role="group"
+        aria-label={keyboardLabel}
+        className="crop-box"
         style={{ position:"absolute", left:`${crop.x}%`, top:`${crop.y}%`, width:`${crop.w}%`, height:`${crop.h}%`, border:"1.5px solid rgba(255,255,255,.9)", boxSizing:"border-box", cursor:"move" }}
+        onKeyDown={onKeyDown}
         onMouseDown={e => startDrag(e,"move")} onTouchStart={e => startDrag(e,"move")}>
         {[33.33,66.66].map(p => (
           <React.Fragment key={p}>
@@ -943,7 +969,8 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
                   ) : null}
                 </div>
                 {/* Crop overlay — NOT clipped so handles can bleed outside */}
-                <CropCanvas key={resetKey} ratio={ratio} ratioLabel={ratios[ratio]} imageDims={rotDims} onCropChange={setCropState} />
+                <CropCanvas key={resetKey} ratio={ratio} ratioLabel={ratios[ratio]} imageDims={rotDims}
+                            onCropChange={setCropState} keyboardLabel={t.crop.boxLabel} />
               </div>
             </div>
             {/* Before → after dimensions */}

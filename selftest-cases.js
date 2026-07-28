@@ -720,6 +720,34 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("the keyboard and the pointer land on the same crop rectangle", async () => {
+  // Both routes go through nextRect; this fails if one of them grows its own
+  // clamping. Deltas are container percentages either way.
+  const ib = { x: 0, y: 0, w: 100, h: 100 };
+  const sc = { x: 20, y: 20, w: 40, h: 40 };
+
+  // Moving stays inside the image however hard it is pushed.
+  const far = nextRect("move", sc, ib, null, 500, 500);
+  assert(far.x + far.w <= ib.w + 0.01 && far.y + far.h <= ib.h + 0.01, "moved out of the image");
+  assert(far.w === sc.w && far.h === sc.h, "a move changed the size");
+  const back = nextRect("move", sc, ib, null, -500, -500);
+  assert(back.x >= -0.01 && back.y >= -0.01, "moved off the top-left");
+
+  // Shift+arrow resizes from the bottom-right: the top-left stays put.
+  const bigger = nextRect("br", sc, ib, null, 10, 10);
+  assert(bigger.w > sc.w && bigger.h > sc.h, "Shift+arrow did not resize");
+  assert(bigger.x === sc.x && bigger.y === sc.y, "the anchored corner moved");
+
+  // A locked ratio survives a keyboard resize, and stays inside the image.
+  const square = nextRect("br", sc, ib, 1, 10, 0);
+  assert(Math.abs(square.w - square.h) < 0.01, "the locked ratio was lost");
+  assert(square.x + square.w <= ib.w + 0.01, "grew past the right edge");
+
+  // Never smaller than the 5-unit floor, however many times it is shrunk.
+  const tiny = nextRect("br", sc, ib, null, -500, -500);
+  assert(tiny.w >= 5 && tiny.h >= 5, `collapsed to ${tiny.w}×${tiny.h}`);
+});
+
 await test("a ratio-locked handle actually resizes the crop box", async () => {
   // The drag loop computed the pointer's requested size and then threw it away
   // by asking ratioLockedRect for a rectangle built from the drag-start size,

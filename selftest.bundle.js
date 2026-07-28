@@ -630,6 +630,49 @@ function ratioLockedRect(type, sc, ib, targetR, want) {
   y = Math.min(Math.max(y, ib.y), ib.y + ib.h - h);
   return { x, y, w, h };
 }
+function nextRect(type, sc, ib, targetR, dx, dy) {
+  let { x, y, w, h } = sc;
+  if (type === "move") {
+    return {
+      x: Math.min(Math.max(x + dx, ib.x), ib.x + ib.w - w),
+      y: Math.min(Math.max(y + dy, ib.y), ib.y + ib.h - h),
+      w,
+      h
+    };
+  }
+  if (type === "tl" || type === "ml" || type === "bl") {
+    const nw = Math.max(5, w - dx);
+    x += w - nw;
+    w = nw;
+  }
+  if (type === "tr" || type === "mr" || type === "br") {
+    w = Math.max(5, w + dx);
+  }
+  if (type === "tl" || type === "tc" || type === "tr") {
+    const nh = Math.max(5, h - dy);
+    y += h - nh;
+    h = nh;
+  }
+  if (type === "bl" || type === "bc" || type === "br") {
+    h = Math.max(5, h + dy);
+  }
+  if (targetR) return ratioLockedRect(type, sc, ib, targetR, { w, h });
+  if (x < ib.x) {
+    w -= ib.x - x;
+    x = ib.x;
+  }
+  if (y < ib.y) {
+    h -= ib.y - y;
+    y = ib.y;
+  }
+  if (x + w > ib.x + ib.w) {
+    w = ib.x + ib.w - x;
+  }
+  if (y + h > ib.y + ib.h) {
+    h = ib.y + ib.h - y;
+  }
+  return { x, y, w: Math.max(5, w), h: Math.max(5, h) };
+}
 function FilePill({ file, selected, onClick }) {
   const url = useFileUrl(file);
   return /* @__PURE__ */ React.createElement("div", { onClick, title: file.name, style: {
@@ -1062,7 +1105,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   ))));
 }
 const ASPECT_NUMS = [null, 1, 4 / 3, 16 / 9, 3 / 4, 9 / 16];
-function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
+function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange, keyboardLabel }) {
   const containerRef = React.useRef(null);
   const imgBoundsRef = React.useRef({ x: 0, y: 0, w: 100, h: 100 });
   const [crop, setCrop] = React.useState({ x: 0, y: 0, w: 100, h: 100 });
@@ -1129,54 +1172,14 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
     const onMove = (ev) => {
       if (ev.cancelable) ev.preventDefault();
       const { x: px, y: py } = getPoint(ev);
-      const dx = (px - ox) / rect.width * 100;
-      const dy = (py - oy) / rect.height * 100;
-      let { x, y, w, h } = { ...sc };
-      const ib = imgBoundsRef.current;
-      const targetR = asp ? asp / cAsp : null;
-      if (type === "move") {
-        x = Math.max(ib.x, Math.min(ib.x + ib.w - w, x + dx));
-        y = Math.max(ib.y, Math.min(ib.y + ib.h - h, y + dy));
-        updateCrop({ x, y, w, h });
-        return;
-      }
-      if (type === "tl" || type === "ml" || type === "bl") {
-        const nw = Math.max(5, w - dx);
-        x += w - nw;
-        w = nw;
-      }
-      if (type === "tr" || type === "mr" || type === "br") {
-        w = Math.max(5, w + dx);
-      }
-      if (type === "tl" || type === "tc" || type === "tr") {
-        const nh = Math.max(5, h - dy);
-        y += h - nh;
-        h = nh;
-      }
-      if (type === "bl" || type === "bc" || type === "br") {
-        h = Math.max(5, h + dy);
-      }
-      if (targetR) {
-        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR, { w, h }));
-      } else {
-        if (x < ib.x) {
-          w -= ib.x - x;
-          x = ib.x;
-        }
-        if (y < ib.y) {
-          h -= ib.y - y;
-          y = ib.y;
-        }
-        if (x + w > ib.x + ib.w) {
-          w = ib.x + ib.w - x;
-        }
-        if (y + h > ib.y + ib.h) {
-          h = ib.y + ib.h - y;
-        }
-        w = Math.max(5, w);
-        h = Math.max(5, h);
-      }
-      updateCrop({ x, y, w, h });
+      updateCrop(nextRect(
+        type,
+        sc,
+        imgBoundsRef.current,
+        asp ? asp / cAsp : null,
+        (px - ox) / rect.width * 100,
+        (py - oy) / rect.height * 100
+      ));
     };
     const onUp = () => {
       window.removeEventListener("mousemove", onMove);
@@ -1189,6 +1192,24 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
     window.addEventListener("touchmove", onMove, { passive: false });
     window.addEventListener("touchend", onUp);
   };
+  const KEY_DELTA = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] };
+  function onKeyDown(e) {
+    const d = KEY_DELTA[e.key];
+    if (!d) return;
+    const el = containerRef.current;
+    if (!el) return;
+    e.preventDefault();
+    const rect = el.getBoundingClientRect();
+    const asp = ASPECT_NUMS[ratio];
+    const targetR = asp ? asp / (rect.width / rect.height) : null;
+    const step = e.altKey ? 0.5 : 2;
+    let [dx, dy] = [d[0] * step, d[1] * step];
+    if (e.shiftKey && targetR && dx === 0) {
+      dx = dy * targetR;
+      dy = 0;
+    }
+    updateCrop(nextRect(e.shiftKey ? "br" : "move", crop, imgBoundsRef.current, targetR, dx, dy));
+  }
   const hs = { position: "absolute", width: 10, height: 10, background: "white", border: "1.5px solid rgba(0,0,0,.35)", borderRadius: 2, zIndex: 2 };
   const br = "var(--radius-lg,12px)";
   const drag = (type) => (e) => {
@@ -1198,7 +1219,12 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
   return /* @__PURE__ */ React.createElement("div", { ref: containerRef, style: { position: "absolute", inset: 0, userSelect: "none", touchAction: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", inset: 0, borderRadius: br, overflow: "hidden", pointerEvents: "none" } }, /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: 0, left: 0, right: 0, height: `${crop.y}%`, background: "rgba(0,0,0,.52)" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${crop.y + crop.h}%`, left: 0, right: 0, bottom: 0, background: "rgba(0,0,0,.52)" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${crop.y}%`, left: 0, width: `${crop.x}%`, height: `${crop.h}%`, background: "rgba(0,0,0,.52)" } }), /* @__PURE__ */ React.createElement("div", { style: { position: "absolute", top: `${crop.y}%`, left: `${crop.x + crop.w}%`, right: 0, height: `${crop.h}%`, background: "rgba(0,0,0,.52)" } })), /* @__PURE__ */ React.createElement(
     "div",
     {
+      tabIndex: 0,
+      role: "group",
+      "aria-label": keyboardLabel,
+      className: "crop-box",
       style: { position: "absolute", left: `${crop.x}%`, top: `${crop.y}%`, width: `${crop.w}%`, height: `${crop.h}%`, border: "1.5px solid rgba(255,255,255,.9)", boxSizing: "border-box", cursor: "move" },
+      onKeyDown,
       onMouseDown: (e) => startDrag(e, "move"),
       onTouchStart: (e) => startDrag(e, "move")
     },
@@ -1294,7 +1320,17 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     background: `linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
     transform: `rotate(${rotation}deg) scale(${(flipH ? -1 : 1) * fitScale},${(flipV ? -1 : 1) * fitScale})`,
     transition: "transform .35s cubic-bezier(.32,1.6,.42,1)"
-  } }) : null), /* @__PURE__ */ React.createElement(CropCanvas, { key: resetKey, ratio, ratioLabel: ratios[ratio], imageDims: rotDims, onCropChange: setCropState }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), "aria-pressed": ratio === i, onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement(
+  } }) : null), /* @__PURE__ */ React.createElement(
+    CropCanvas,
+    {
+      key: resetKey,
+      ratio,
+      ratioLabel: ratios[ratio],
+      imageDims: rotDims,
+      onCropChange: setCropState,
+      keyboardLabel: t.crop.boxLabel
+    }
+  ))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), "aria-pressed": ratio === i, onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "range",
@@ -2055,6 +2091,23 @@ function brokenFile() {
       wasm.size < browser.size,
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
+  });
+  await test("the keyboard and the pointer land on the same crop rectangle", async () => {
+    const ib = { x: 0, y: 0, w: 100, h: 100 };
+    const sc = { x: 20, y: 20, w: 40, h: 40 };
+    const far = nextRect("move", sc, ib, null, 500, 500);
+    assert(far.x + far.w <= ib.w + 0.01 && far.y + far.h <= ib.h + 0.01, "moved out of the image");
+    assert(far.w === sc.w && far.h === sc.h, "a move changed the size");
+    const back = nextRect("move", sc, ib, null, -500, -500);
+    assert(back.x >= -0.01 && back.y >= -0.01, "moved off the top-left");
+    const bigger = nextRect("br", sc, ib, null, 10, 10);
+    assert(bigger.w > sc.w && bigger.h > sc.h, "Shift+arrow did not resize");
+    assert(bigger.x === sc.x && bigger.y === sc.y, "the anchored corner moved");
+    const square = nextRect("br", sc, ib, 1, 10, 0);
+    assert(Math.abs(square.w - square.h) < 0.01, "the locked ratio was lost");
+    assert(square.x + square.w <= ib.w + 0.01, "grew past the right edge");
+    const tiny = nextRect("br", sc, ib, null, -500, -500);
+    assert(tiny.w >= 5 && tiny.h >= 5, `collapsed to ${tiny.w}\xD7${tiny.h}`);
   });
   await test("a ratio-locked handle actually resizes the crop box", async () => {
     const ib = { x: 0, y: 0, w: 100, h: 100 };

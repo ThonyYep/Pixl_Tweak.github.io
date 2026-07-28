@@ -1406,3 +1406,11 @@ body { font-family: "Plus Jakarta Sans", sans-serif; }
   /* Summary card */
   .summary-num { font-size: 26px; }
 }
+
+/* The crop box is reachable with Tab and driven with the arrow keys, so the
+   focus ring has to be visible against both the image and the dark scrim. */
+.crop-box:focus-visible {
+  outline: 2px solid var(--coral, #ff7a59);
+  outline-offset: 2px;
+  box-shadow: 0 0 0 4px rgba(0, 0, 0, .45);
+}
