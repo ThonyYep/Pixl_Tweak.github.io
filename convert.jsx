@@ -436,6 +436,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             </label>
             <div className="slider-row">
               <input type="range" min="10" max="100" value={settings.quality}
+                     aria-label={t.convert.quality}
                 onChange={e => setSettings({ ...settings, quality: +e.target.value })} />
             </div>
             <div style={{ marginTop: 6, fontSize: 11.5, color: "var(--ink-3)" }}>{t.convert.qualityHint}</div>

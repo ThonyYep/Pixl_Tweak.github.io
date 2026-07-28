@@ -574,7 +574,8 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               <span style={{ float:"right", color:"var(--ink-3)", textTransform:"none", letterSpacing:0, fontWeight:500 }}>{quality}%</span>
             </label>
             <div className="slider-row">
-              <input type="range" min="10" max="100" value={quality} onChange={e => setQuality(+e.target.value)} />
+              <input type="range" min="10" max="100" value={quality}
+                     aria-label={t.compress.quality} onChange={e => setQuality(+e.target.value)} />
             </div>
           </div>
         )}
@@ -974,7 +975,8 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             <span style={{ float:"right", color:"var(--ink-3)", textTransform:"none", letterSpacing:0, fontWeight:500 }}>{rotation}°</span>
           </label>
           <div className="slider-row">
-            <input type="range" min="-180" max="180" step="1" value={rotation} onChange={e => setRotation(+e.target.value)} />
+            <input type="range" min="-180" max="180" step="1" value={rotation}
+                   aria-label={t.crop.rotate} onChange={e => setRotation(+e.target.value)} />
           </div>
           <div style={{ display:"flex", gap:6, marginTop:8 }}>
             {[-90,0,90,180].map(deg => (

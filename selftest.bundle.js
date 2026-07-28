@@ -512,6 +512,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
       min: "10",
       max: "100",
       value: settings.quality,
+      "aria-label": t.convert.quality,
       onChange: (e) => setSettings({ ...settings, quality: +e.target.value })
     }
   )), /* @__PURE__ */ React.createElement("div", { style: { marginTop: 6, fontSize: 11.5, color: "var(--ink-3)" } }, t.convert.qualityHint)), isPDF && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement(
@@ -992,7 +993,17 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
       onClick: () => setMode(id)
     },
     /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, name)
-  )))), sizeModeAvailable && !inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.quality, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, quality, "%")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement("input", { type: "range", min: "10", max: "100", value: quality, onChange: (e) => setQuality(+e.target.value) }))), inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.targetSize), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { className: "num-input", style: { flex: 1 } }, /* @__PURE__ */ React.createElement(
+  )))), sizeModeAvailable && !inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.quality, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, quality, "%")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "range",
+      min: "10",
+      max: "100",
+      value: quality,
+      "aria-label": t.compress.quality,
+      onChange: (e) => setQuality(+e.target.value)
+    }
+  ))), inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.targetSize), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 8 } }, /* @__PURE__ */ React.createElement("div", { className: "num-input", style: { flex: 1 } }, /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
@@ -1274,7 +1285,18 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     background: `linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
     transform: `rotate(${rotation}deg) scale(${(flipH ? -1 : 1) * fitScale},${(flipV ? -1 : 1) * fitScale})`,
     transition: "transform .35s cubic-bezier(.32,1.6,.42,1)"
-  } }) : null), /* @__PURE__ */ React.createElement(CropCanvas, { key: resetKey, ratio, ratioLabel: ratios[ratio], imageDims: rotDims, onCropChange: setCropState }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), "aria-pressed": ratio === i, onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement("input", { type: "range", min: "-180", max: "180", step: "1", value: rotation, onChange: (e) => setRotation(+e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8 } }, [-90, 0, 90, 180].map((deg) => /* @__PURE__ */ React.createElement(
+  } }) : null), /* @__PURE__ */ React.createElement(CropCanvas, { key: resetKey, ratio, ratioLabel: ratios[ratio], imageDims: rotDims, onCropChange: setCropState }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), "aria-pressed": ratio === i, onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement(
+    "input",
+    {
+      type: "range",
+      min: "-180",
+      max: "180",
+      step: "1",
+      value: rotation,
+      "aria-label": t.crop.rotate,
+      onChange: (e) => setRotation(+e.target.value)
+    }
+  )), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8 } }, [-90, 0, 90, 180].map((deg) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: deg,
