@@ -98,21 +98,33 @@ function brokenFile() {
   });
 
   // ── Bug 3: resizing must not paint over the alpha channel ──────────────
-  await test("contain resize leaves the padding transparent", () => {
-    const out = P.resizeCanvas(solidCanvas(20, 10), 20, 20, 0);  // 2:1 into a square
+  // These two used to source their transparency from contain's padding. Contain
+  // no longer pads — it sizes the canvas to the image — so the alpha has to
+  // come from an image that genuinely has some.
+  await test("resizing preserves an image's own transparency", () => {
+    const src = document.createElement("canvas");
+    src.width = 20; src.height = 20;
+    const sctx = src.getContext("2d");
+    sctx.fillStyle = "#3366cc";
+    sctx.fillRect(0, 0, 10, 20);                 // left half opaque, right half clear
+    const out = P.resizeCanvas(src, 40, 40, 2);  // stretch, so both halves survive
     const px = (x, y) => out.getContext("2d").getImageData(x, y, 1, 1).data;
-    assert(px(1, 1)[3]   === 0,   "padding alpha is " + px(1, 1)[3] + ", expected 0");
-    assert(px(10, 10)[3] === 255, "image area lost its opacity");
+    assert(px(30, 20)[3] === 0,   "the clear half came back at alpha " + px(30, 20)[3]);
+    assert(px(5, 20)[3]  === 255, "the opaque half lost its opacity");
   });
 
-  await test("resized JPG still flattens onto white", async () => {
-    const out = P.resizeCanvas(solidCanvas(20, 10), 20, 20, 0);
-    const img = await P.loadImage(await P.canvasToBlob(out, "JPG", 90, true));
+  await test("JPG flattens transparency onto white", async () => {
+    const src = document.createElement("canvas");
+    src.width = 20; src.height = 20;
+    const sctx = src.getContext("2d");
+    sctx.fillStyle = "#3366cc";
+    sctx.fillRect(0, 0, 10, 20);
+    const img = await P.loadImage(await P.canvasToBlob(src, "JPG", 90, true));
     const t = document.createElement("canvas");
     t.width = 20; t.height = 20;
     t.getContext("2d").drawImage(img, 0, 0);
-    const [r, g, b] = t.getContext("2d").getImageData(1, 1, 1, 1).data;
-    assert(r > 240 && g > 240 && b > 240, `padding should be white, got rgb(${r},${g},${b})`);
+    const [r, g, b] = t.getContext("2d").getImageData(15, 10, 1, 1).data;
+    assert(r > 240 && g > 240 && b > 240, `clear area should be white, got rgb(${r},${g},${b})`);
   });
 
   // ── Bug 4: real dimensions are readable from an uploaded file ──────────
@@ -875,17 +887,39 @@ await test("the resize preview reports the size the resize actually produces", a
 });
 
 await test("resizing never enlarges the image when upscaling is off", async () => {
-  // A 40×30 source in a 400×400 box: the canvas is the box the user asked for,
-  // but the picture inside it must still be 40×30.
+  // A 40×30 source asked to fit a 400×400 box with upscaling off comes back at
+  // 40×30 — contain sizes the canvas to the image, so there is no box left
+  // over to sit in.
   const src = solidCanvas(40, 30);
   const c = P.resizeCanvas(src, 400, 400, 0, false);
-  const ctx = c.getContext("2d");
-  // Walk the middle row out from the centre until the drawn pixels stop.
-  const row = ctx.getImageData(0, 200, 400, 1).data;
-  let drawn = 0;
-  for (let x = 0; x < 400; x++) if (row[x * 4 + 3] > 0) drawn++;
-  assert(drawn <= 41, `image spans ${drawn}px across a 40px source — it was upscaled`);
-  assert(drawn >= 39, `image spans only ${drawn}px — it was shrunk instead`);
+  assert(c.width === 40 && c.height === 30,
+    `got ${c.width}×${c.height} from a 40×30 source — it was scaled`);
+});
+
+await test("contain leaves no padding for a JPG to bake white bars into", async () => {
+  // Contain used to pad out to the full box. For PNG that was transparent
+  // margin; for JPG, which has no alpha, canvasToBlob flattened it onto white
+  // and the bars ended up in the pixels.
+  const src = solidCanvas(1600, 900);            // 16:9 into a 4:3 box
+  const dims = P.resizeTargetDims(1600, 900, 800, 600, 0, true);
+  assert(dims.w === 800 && dims.h === 450, `contain reported ${dims.w}×${dims.h}`);
+
+  const c = P.resizeCanvas(src, dims.w, dims.h, 0, true);
+  assert(c.width === 800 && c.height === 450, `canvas is ${c.width}×${c.height}`);
+  assert(Math.abs(c.width / c.height - 1600 / 900) < 0.01, "the source aspect was not kept");
+
+  // Every corner must be image, not margin — in a JPG, margin is white.
+  const blob = await P.canvasToBlob(c, "JPG", 90, false);
+  const bmp  = await createImageBitmap(blob);
+  const probe = document.createElement("canvas");
+  probe.width = bmp.width; probe.height = bmp.height;
+  const pctx = probe.getContext("2d");
+  pctx.drawImage(bmp, 0, 0);
+  for (const [x, y] of [[2, 2], [bmp.width - 3, 2], [2, bmp.height - 3], [bmp.width - 3, bmp.height - 3]]) {
+    const [r, g, b] = pctx.getImageData(x, y, 1, 1).data;
+    assert(!(r > 245 && g > 245 && b > 245),
+      `corner ${x},${y} is white (${r},${g},${b}) — padding was baked in`);
+  }
 });
 
 await test("max compression never returns a file larger than plain encoding", async () => {

@@ -109,6 +109,16 @@ const ENGINE = (() => {
   // keep. Contain and cover enlarge through the scale factor instead, which
   // resizeCanvas caps, so their canvas stays exactly what was asked for.
   function resizeTargetDims(sw, sh, targetW, targetH, fit, upscale) {
+    // Contain fits the image inside the box and stops there — the output is the
+    // fitted image, not the box with the image parked in the middle of it.
+    // Padding to the full box meant a JPG came back with white bars baked into
+    // the pixels, because JPG has no alpha for them to be transparent in.
+    if (fit === 0) {
+      let scale = Math.min(targetW / sw, targetH / sh);
+      if (upscale === false) scale = Math.min(scale, 1);
+      return { w: Math.max(1, Math.round(sw * scale)),
+               h: Math.max(1, Math.round(sh * scale)) };
+    }
     if (upscale !== false || fit !== 2) return { w: targetW, h: targetH };
     return { w: Math.min(targetW, sw), h: Math.min(targetH, sh) };
   }
@@ -128,10 +138,11 @@ const ENGINE = (() => {
       dw = sw * scale; dh = sh * scale;
     }
     const shrunk = preShrink(src, dw, dh);
-    const canvas = makeCanvas(targetW, targetH);
-    // No background fill: only 'contain' leaves bars, and canvasToBlob already
-    // flattens onto white for JPG or when transparency is turned off.
-    ctx2d(canvas).drawImage(shrunk, (targetW - dw) / 2, (targetH - dh) / 2, dw, dh);
+    // Contain sizes the canvas to the image, so there is no margin to centre
+    // in and nothing to fill. Cover overflows its box and is clipped by it;
+    // stretch matches it exactly. No mode leaves a gap any more.
+    const canvas = fit === 0 ? makeCanvas(dw, dh) : makeCanvas(targetW, targetH);
+    ctx2d(canvas).drawImage(shrunk, (canvas.width - dw) / 2, (canvas.height - dh) / 2, dw, dh);
     if (shrunk !== src) releaseCanvas(shrunk);
     return canvas;
   }
