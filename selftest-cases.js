@@ -720,6 +720,39 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("a ratio-locked handle actually resizes the crop box", async () => {
+  // The drag loop computed the pointer's requested size and then threw it away
+  // by asking ratioLockedRect for a rectangle built from the drag-start size,
+  // so with any ratio locked the eight resize handles were inert — measured in
+  // the page as 351×351 before and after a 90px inward drag, while Libre went
+  // 538×358 → 448×298 on the identical gesture.
+  const ib = { x: 0, y: 0, w: 100, h: 100 };
+  const start = { x: 10, y: 10, w: 80, h: 80 };
+
+  const same = ratioLockedRect("tl", start, ib, 1, { w: 80, h: 80 });
+  assert(Math.round(same.w) === 80, `no change asked, got ${same.w}`);
+
+  // Pointer drags the top-left corner in: the box must shrink and stay square,
+  // anchored to the bottom-right corner it is not dragging.
+  const smaller = ratioLockedRect("tl", start, ib, 1, { w: 50, h: 50 });
+  assert(Math.round(smaller.w) === 50, `shrink ignored — still ${smaller.w}`);
+  assert(Math.abs(smaller.w - smaller.h) < 0.01, "stopped being square");
+  assert(Math.abs((smaller.x + smaller.w) - (start.x + start.w)) < 0.01,
+    "the anchored right edge moved");
+  assert(Math.abs((smaller.y + smaller.h) - (start.y + start.h)) < 0.01,
+    "the anchored bottom edge moved");
+
+  // Growing past the image is capped, not allowed out of bounds.
+  const huge = ratioLockedRect("tl", start, ib, 1, { w: 500, h: 500 });
+  assert(huge.x >= -0.01 && huge.y >= -0.01, "escaped the top-left");
+  assert(huge.x + huge.w <= ib.w + 0.01, "escaped the right edge");
+  assert(huge.y + huge.h <= ib.h + 0.01, "escaped the bottom edge");
+
+  // Omitting want keeps the old behaviour, which the clamping tests rely on.
+  const legacy = ratioLockedRect("tl", start, ib, 1);
+  assert(Math.round(legacy.w) === 80, "the default size is no longer sc");
+});
+
 await test("the savings figure counts only the inputs that produced output", async () => {
   // This number has been wrong twice, each time by choosing the wrong set of
   // files. The three shapes below are the three that actually occur.

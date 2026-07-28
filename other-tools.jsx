@@ -55,18 +55,23 @@ function lockedPartner(value, ratio, editing) {
 // sc is the rectangle as it was when the drag started, ib the image bounds,
 // both in container percentages; targetR is the wanted width/height in that
 // same space. Every position is derived from an anchor — the edge the handle
-// does not move — so the anchors are clamped into the image first: an anchor
-// even slightly outside was otherwise copied forward, and one bad rectangle
-// stayed bad for the rest of the session.
+// does not move — so the anchors have to come from sc, and they are clamped
+// into the image first: an anchor even slightly outside was otherwise copied
+// forward, and one bad rectangle stayed bad for the rest of the session.
+//
+// want is the size the pointer is asking for. It has to be separate from sc:
+// taking the size from sc as well meant every mousemove recomputed the same
+// rectangle from the same start dimensions, so with a ratio locked the resize
+// handles did nothing at all — only Libre could resize.
 //
 // Lives out here so the test drives this function rather than a copy of it.
-function ratioLockedRect(type, sc, ib, targetR) {
+function ratioLockedRect(type, sc, ib, targetR, want) {
   const cx0 = v => Math.min(Math.max(v, ib.x), ib.x + ib.w);
   const cy0 = v => Math.min(Math.max(v, ib.y), ib.y + ib.h);
   const rA  = cx0(sc.x + sc.w),     bA  = cy0(sc.y + sc.h);
   const lA  = cx0(sc.x),            tA  = cy0(sc.y);
   const cxA = cx0(sc.x + sc.w / 2), cyA = cy0(sc.y + sc.h / 2);
-  let { w, h } = sc, x, y;
+  let { w, h } = want || sc, x, y;
 
   if (type === "tc" || type === "bc") {
     // Height leads, width follows the ratio, centred horizontally. The width
@@ -772,7 +777,7 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
       if (type==="bl"||type==="bc"||type==="br") { h=Math.max(5,h+dy); }
 
       if (targetR) {
-        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR));
+        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR, { w, h }));
       } else {
         // ── Free mode — clamp to image bounds ────────────────────────────────
         if (x < ib.x)             { w -= ib.x - x;       x = ib.x; }

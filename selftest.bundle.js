@@ -597,13 +597,13 @@ function lockedPartner(value, ratio, editing) {
   if (!ratio) return null;
   return Math.max(1, Math.round(editing === "width" ? value / ratio : value * ratio));
 }
-function ratioLockedRect(type, sc, ib, targetR) {
+function ratioLockedRect(type, sc, ib, targetR, want) {
   const cx0 = (v) => Math.min(Math.max(v, ib.x), ib.x + ib.w);
   const cy0 = (v) => Math.min(Math.max(v, ib.y), ib.y + ib.h);
   const rA = cx0(sc.x + sc.w), bA = cy0(sc.y + sc.h);
   const lA = cx0(sc.x), tA = cy0(sc.y);
   const cxA = cx0(sc.x + sc.w / 2), cyA = cy0(sc.y + sc.h / 2);
-  let { w, h } = sc, x, y;
+  let { w, h } = want || sc, x, y;
   if (type === "tc" || type === "bc") {
     const maxH = type === "tc" ? bA - ib.y : ib.y + ib.h - tA;
     const maxWc = 2 * Math.min(cxA - ib.x, ib.x + ib.w - cxA);
@@ -1157,7 +1157,7 @@ function CropCanvas({ ratio, ratioLabel, imageDims, onCropChange }) {
         h = Math.max(5, h + dy);
       }
       if (targetR) {
-        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR));
+        ({ x, y, w, h } = ratioLockedRect(type, sc, ib, targetR, { w, h }));
       } else {
         if (x < ib.x) {
           w -= ib.x - x;
@@ -2055,6 +2055,29 @@ function brokenFile() {
       wasm.size < browser.size,
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
+  });
+  await test("a ratio-locked handle actually resizes the crop box", async () => {
+    const ib = { x: 0, y: 0, w: 100, h: 100 };
+    const start = { x: 10, y: 10, w: 80, h: 80 };
+    const same = ratioLockedRect("tl", start, ib, 1, { w: 80, h: 80 });
+    assert(Math.round(same.w) === 80, `no change asked, got ${same.w}`);
+    const smaller = ratioLockedRect("tl", start, ib, 1, { w: 50, h: 50 });
+    assert(Math.round(smaller.w) === 50, `shrink ignored \u2014 still ${smaller.w}`);
+    assert(Math.abs(smaller.w - smaller.h) < 0.01, "stopped being square");
+    assert(
+      Math.abs(smaller.x + smaller.w - (start.x + start.w)) < 0.01,
+      "the anchored right edge moved"
+    );
+    assert(
+      Math.abs(smaller.y + smaller.h - (start.y + start.h)) < 0.01,
+      "the anchored bottom edge moved"
+    );
+    const huge = ratioLockedRect("tl", start, ib, 1, { w: 500, h: 500 });
+    assert(huge.x >= -0.01 && huge.y >= -0.01, "escaped the top-left");
+    assert(huge.x + huge.w <= ib.w + 0.01, "escaped the right edge");
+    assert(huge.y + huge.h <= ib.h + 0.01, "escaped the bottom edge");
+    const legacy = ratioLockedRect("tl", start, ib, 1);
+    assert(Math.round(legacy.w) === 80, "the default size is no longer sc");
   });
   await test("the savings figure counts only the inputs that produced output", async () => {
     const files = [
