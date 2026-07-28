@@ -1854,35 +1854,49 @@ function brokenFile() {
   }
   await test("cancel still works after an earlier job has finished", async () => {
     await withoutDownloads(async () => {
-      const files = await jobFiles(10);
+      const files = await jobFiles(10, 700);
       await new Promise((r) => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {
       }, () => r()));
-      const long = new Promise((r) => P.processConvert(
+      let done = 0, sent = false;
+      const res = await new Promise((r) => P.processConvert(
         files,
         { format: "JPG", quality: 88 },
-        () => {
+        (id, pct) => {
+          if (pct === 100 && ++done === 2 && !sent) {
+            sent = true;
+            P.cancelJob();
+          }
         },
-        (ok, e, s2, cancelled) => r({ done: s2.length, cancelled })
+        (ok, e, sizes, cancelled) => r({ finished: sizes.length, cancelled })
       ));
-      await new Promise((r) => setTimeout(r, 250));
-      P.cancelJob();
-      const res = await long;
+      assert(sent, "the job ended before two files finished \u2014 cannot test cancel");
       assert(res.cancelled === true, "cancel was a no-op \u2014 the earlier job cleared the slot");
-      assert(res.done < files.length, `all ${files.length} files ran anyway`);
+      assert(res.finished < files.length, `all ${files.length} files ran anyway`);
     });
   });
   await test("starting a tool discards the previous job instead of dumping it", async () => {
     await withoutDownloads(async () => {
-      const files = await jobFiles(10);
-      let firstCalledBack = false;
-      P.processConvert(files, { format: "JPG", quality: 88 }, () => {
-      }, () => {
-        firstCalledBack = true;
+      const files = await jobFiles(10, 700);
+      let firstCalledBack = false, started = false;
+      const superseded = new Promise((resolve) => {
+        P.processConvert(
+          files,
+          { format: "JPG", quality: 88 },
+          (id, pct) => {
+            if (pct === 100 && !started) {
+              started = true;
+              P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {
+              }, () => resolve());
+            }
+          },
+          () => {
+            firstCalledBack = true;
+          }
+        );
       });
-      await new Promise((r) => setTimeout(r, 250));
-      await new Promise((r) => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {
-      }, () => r()));
-      await new Promise((r) => setTimeout(r, 400));
+      await superseded;
+      await new Promise((r) => setTimeout(r, 500));
+      assert(started, "the first job never reported progress");
       assert(
         !firstCalledBack,
         "the superseded job still reported back, so its partial output was downloaded"
@@ -1908,30 +1922,6 @@ function brokenFile() {
       }
     });
   });
-  await test("the whole pipeline works without OffscreenCanvas", async () => {
-    const real = window.OffscreenCanvas;
-    delete window.OffscreenCanvas;
-    try {
-      assert(typeof OffscreenCanvas === "undefined", "could not simulate its absence");
-      const src = solidCanvas(120, 80);
-      const resized = P.resizeCanvas(src, 60, 40, 2);
-      assert(
-        resized.width === 60 && resized.height === 40,
-        `resize gave ${resized.width}x${resized.height}`
-      );
-      const png = await P.canvasToBlob(resized, "PNG", 100, true);
-      assert(png.type === "image/png", "encode gave " + png.type);
-      const decoded = await P.getSourceCanvas({ fileObj: new File([png], "x.png", { type: "image/png" }) });
-      assert(
-        decoded.width === 60 && decoded.height === 40,
-        `decode gave ${decoded.width}x${decoded.height}`
-      );
-      const jpg = await P.canvasToBlob(decoded, "JPG", 80, false);
-      assert(jpg.type === "image/jpeg", "jpeg encode gave " + jpg.type);
-    } finally {
-      window.OffscreenCanvas = real;
-    }
-  });
   await test("depth reduction hits the advertised levels per channel", async () => {
     const c = busyCanvas(300);
     for (const levels of [128, 64, 32, 16]) {
@@ -1955,6 +1945,30 @@ function brokenFile() {
       let changed = 0;
       for (let i = 0; i < before.length; i++) if (before[i] !== d[i]) changed++;
       assert(changed > 0, `${levels} levels left the image untouched`);
+    }
+  });
+  await test("the whole pipeline works without OffscreenCanvas", async () => {
+    const real = window.OffscreenCanvas;
+    delete window.OffscreenCanvas;
+    try {
+      assert(typeof OffscreenCanvas === "undefined", "could not simulate its absence");
+      const src = solidCanvas(120, 80);
+      const resized = P.resizeCanvas(src, 60, 40, 2);
+      assert(
+        resized.width === 60 && resized.height === 40,
+        `resize gave ${resized.width}x${resized.height}`
+      );
+      const png = await P.canvasToBlob(resized, "PNG", 100, true);
+      assert(png.type === "image/png", "encode gave " + png.type);
+      const decoded = await P.getSourceCanvas({ fileObj: new File([png], "x.png", { type: "image/png" }) });
+      assert(
+        decoded.width === 60 && decoded.height === 40,
+        `decode gave ${decoded.width}x${decoded.height}`
+      );
+      const jpg = await P.canvasToBlob(decoded, "JPG", 80, false);
+      assert(jpg.type === "image/jpeg", "jpeg encode gave " + jpg.type);
+    } finally {
+      window.OffscreenCanvas = real;
     }
   });
   await test("OxiPNG is smaller than the browser's PNG, and still lossless", async () => {

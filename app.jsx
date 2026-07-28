@@ -55,7 +55,8 @@ function Tabs({ t, value, onChange, fileCount }) {
   // ── Mobile dropdown ────────────────────────────────────────────────
   if (isMobile) {
     return (
-      <div ref={dropRef} style={{ position:"relative", marginBottom:14, zIndex:40 }}>
+      <nav ref={dropRef} aria-label={t.tabs.switchTool}
+           style={{ position:"relative", marginBottom:14, zIndex:40 }}>
         {/* Current tab row */}
         <div style={{
           display:"flex", alignItems:"center", justifyContent:"space-between",
@@ -78,8 +79,13 @@ function Tabs({ t, value, onChange, fileCount }) {
           </div>
           <button
             onClick={() => setOpen(o => !o)}
+            aria-label={t.tabs.switchTool}
+            aria-haspopup="menu"
+            aria-expanded={open}
             style={{ border:0, background:"transparent", cursor:"pointer", color:"var(--ink-2)",
-              display:"flex", alignItems:"center", padding:4, borderRadius:8,
+              display:"flex", alignItems:"center", justifyContent:"center",
+              // 44px is the smallest comfortable tap target; this was 28.
+              width:44, height:44, margin:-8, padding:0, borderRadius:10,
               transition:"color .15s" }}>
             <Icon name="menu" size={20} />
           </button>
@@ -112,7 +118,7 @@ function Tabs({ t, value, onChange, fileCount }) {
             ))}
           </div>
         )}
-      </div>
+      </nav>
     );
   }
 

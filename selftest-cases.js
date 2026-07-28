@@ -579,27 +579,40 @@ async function withoutDownloads(fn) {
 
 await test("cancel still works after an earlier job has finished", async () => {
   await withoutDownloads(async () => {
-    const files = await jobFiles(10);
+    const files = await jobFiles(10, 700);
     // Finishing this used to clear the single active-job slot.
     await new Promise(r => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {}, () => r()));
-    const long = new Promise(r => P.processConvert(files, { format: "JPG", quality: 88 },
-      () => {}, (ok, e, s, cancelled) => r({ done: s.length, cancelled })));
-    await new Promise(r => setTimeout(r, 250));
-    P.cancelJob();
-    const res = await long;
+    // Cancel on a progress event rather than a stopwatch. Timing it against a
+    // fixed delay raced the queue: on a fast run the job was already over.
+    let done = 0, sent = false;
+    const res = await new Promise(r => P.processConvert(files, { format: "JPG", quality: 88 },
+      (id, pct) => { if (pct === 100 && ++done === 2 && !sent) { sent = true; P.cancelJob(); } },
+      (ok, e, sizes, cancelled) => r({ finished: sizes.length, cancelled })));
+    assert(sent, "the job ended before two files finished — cannot test cancel");
     assert(res.cancelled === true, "cancel was a no-op — the earlier job cleared the slot");
-    assert(res.done < files.length, `all ${files.length} files ran anyway`);
+    assert(res.finished < files.length, `all ${files.length} files ran anyway`);
   });
 });
 
 await test("starting a tool discards the previous job instead of dumping it", async () => {
   await withoutDownloads(async () => {
-    const files = await jobFiles(10);
-    let firstCalledBack = false;
-    P.processConvert(files, { format: "JPG", quality: 88 }, () => {}, () => { firstCalledBack = true; });
-    await new Promise(r => setTimeout(r, 250));
-    await new Promise(r => P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {}, () => r()));
-    await new Promise(r => setTimeout(r, 400));
+    const files = await jobFiles(10, 700);
+    let firstCalledBack = false, started = false;
+    // Supersede the moment the first job proves it is running, so this does
+    // not depend on how fast the machine is.
+    const superseded = new Promise(resolve => {
+      P.processConvert(files, { format: "JPG", quality: 88 },
+        (id, pct) => {
+          if (pct === 100 && !started) {
+            started = true;
+            P.processCompress([files[0]], { format: "JPG", quality: 70 }, () => {}, () => resolve());
+          }
+        },
+        () => { firstCalledBack = true; });
+    });
+    await superseded;
+    await new Promise(r => setTimeout(r, 500));
+    assert(started, "the first job never reported progress");
     assert(!firstCalledBack,
       "the superseded job still reported back, so its partial output was downloaded");
   });
@@ -626,36 +639,6 @@ await test("a queue is dispatched once, not once per remount", async () => {
   });
 });
 
-// ── The no-OffscreenCanvas fallback is real ────────────────────────────
-// Safari only got OffscreenCanvas in 16.4. processor.jsx claims those
-// browsers run the same engine inline; they did not — makeCanvas called
-// `new OffscreenCanvas` unconditionally and every operation threw.
-await test("the whole pipeline works without OffscreenCanvas", async () => {
-  const real = window.OffscreenCanvas;
-  delete window.OffscreenCanvas;
-  try {
-    assert(typeof OffscreenCanvas === "undefined", "could not simulate its absence");
-
-    const src = solidCanvas(120, 80);
-    const resized = P.resizeCanvas(src, 60, 40, 2);
-    assert(resized.width === 60 && resized.height === 40,
-      `resize gave ${resized.width}x${resized.height}`);
-
-    const png = await P.canvasToBlob(resized, "PNG", 100, true);
-    assert(png.type === "image/png", "encode gave " + png.type);
-
-    // and the decode path, which used createImageBitmap unconditionally
-    const decoded = await P.getSourceCanvas({ fileObj: new File([png], "x.png", { type: "image/png" }) });
-    assert(decoded.width === 60 && decoded.height === 40,
-      `decode gave ${decoded.width}x${decoded.height}`);
-
-    const jpg = await P.canvasToBlob(decoded, "JPG", 80, false);
-    assert(jpg.type === "image/jpeg", "jpeg encode gave " + jpg.type);
-  } finally {
-    window.OffscreenCanvas = real;
-  }
-});
-
 // ── Colour depth reduction says what it does ───────────────────────────
 await test("depth reduction hits the advertised levels per channel", async () => {
   const c = busyCanvas(300);
@@ -679,6 +662,32 @@ await test("no depth option is a no-op", async () => {
     let changed = 0;
     for (let i = 0; i < before.length; i++) if (before[i] !== d[i]) changed++;
     assert(changed > 0, `${levels} levels left the image untouched`);
+  }
+});
+
+await test("the whole pipeline works without OffscreenCanvas", async () => {
+  const real = window.OffscreenCanvas;
+  delete window.OffscreenCanvas;
+  try {
+    assert(typeof OffscreenCanvas === "undefined", "could not simulate its absence");
+
+    const src = solidCanvas(120, 80);
+    const resized = P.resizeCanvas(src, 60, 40, 2);
+    assert(resized.width === 60 && resized.height === 40,
+      `resize gave ${resized.width}x${resized.height}`);
+
+    const png = await P.canvasToBlob(resized, "PNG", 100, true);
+    assert(png.type === "image/png", "encode gave " + png.type);
+
+    // and the decode path, which used createImageBitmap unconditionally
+    const decoded = await P.getSourceCanvas({ fileObj: new File([png], "x.png", { type: "image/png" }) });
+    assert(decoded.width === 60 && decoded.height === 40,
+      `decode gave ${decoded.width}x${decoded.height}`);
+
+    const jpg = await P.canvasToBlob(decoded, "JPG", 80, false);
+    assert(jpg.type === "image/jpeg", "jpeg encode gave " + jpg.type);
+  } finally {
+    window.OffscreenCanvas = real;
   }
 });
 

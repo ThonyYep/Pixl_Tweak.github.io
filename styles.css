@@ -846,6 +846,15 @@ body::before {
   outline: 2px solid var(--coral);
   outline-offset: 2px;
 }
+/* The switch is 22px tall, under the 24px minimum for a pointer target. This
+   grows the hit area to 44 without changing anything you can see. */
+.toggle::after {
+  content: "";
+  position: absolute;
+  left: 0; right: 0; top: 50%;
+  transform: translateY(-50%);
+  height: 44px;
+}
 .toggle .dot {
   position: absolute;
   top: 2px;

@@ -11,6 +11,7 @@ const COPY = {
       resize: "Resize",
       compress: "Compress",
       crop: "Crop & Rotate",
+      switchTool: "Switch tool",
     },
 
     drop: {
@@ -142,6 +143,7 @@ const COPY = {
       resize: "Redimensionar",
       compress: "Comprimir",
       crop: "Recortar",
+      switchTool: "Cambiar de herramienta",
     },
 
     drop: {
