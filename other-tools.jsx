@@ -372,7 +372,6 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 
 function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx,  setSelectedIdx]  = React.useState(0);
-  const [target,       setTarget]       = React.useState(0);
   const [quality,      setQuality]      = React.useState(72);
   const [format,       setFormat]       = React.useState("JPG");
   const [reduceColors, setReduceColors] = React.useState(false);
@@ -394,6 +393,12 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const sizeModeAvailable = format !== "PNG";
   const inSizeMode = mode === "size" && sizeModeAvailable;
   const targetBytes = inSizeMode ? Math.max(1, targetNum) * (targetUnit === "MB" ? 1e6 : 1e3) : 0;
+
+  // Which preset is lit is read off the quality, never stored beside it. As
+  // separate state the two drifted immediately: "Web" was highlighted on load
+  // while quality sat at 72, and moving the slider left the old chip lit.
+  const PRESET_QUALITY = [60, 50, 88];
+  const activePreset = PRESET_QUALITY.indexOf(quality);   // -1 lights "Custom"
 
   const totalBefore = selectedFile ? selectedFile.size : 0;
   // Measured on completion. Guessing it from a per-format factor, as this used
@@ -486,19 +491,27 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
       <aside className="rail" style={{ position:"static" }}>
         <h3>{t.compress.heading}</h3>
 
-        <div className="field">
-          <label>{t.compress.target}</label>
-          <div className="preset-grid">
-            {t.compress.targets.map((name, i) => (
-              <button key={i} className={"preset " + (target===i?"on":"")}
-                style={{ flexDirection:"column", gap:4, alignItems:"center", justifyContent:"center", padding:"8px 4px" }}
-                onClick={() => { setTarget(i); setQuality([60,50,88,quality][i]); }}>
-                <Icon name={["globe","mail","printer","star"][i]} size={16} />
-                <span style={{ textAlign:"center", width:"100%" }}>{name}</span>
-              </button>
-            ))}
+        {/* Presets pick a quality, so they are meaningless in size mode where
+            the search chooses it. Hidden rather than left inert. */}
+        {!inSizeMode && (
+          <div className="field">
+            <label>{t.compress.target}</label>
+            <div className="preset-grid">
+              {t.compress.targets.map((name, i) => {
+                const lit = i === (activePreset === -1 ? 3 : activePreset);
+                return (
+                  <button key={i} className={"preset " + (lit ? "on" : "")}
+                    style={{ flexDirection:"column", gap:4, alignItems:"center", justifyContent:"center", padding:"8px 4px" }}
+                    disabled={i === 3}
+                    onClick={() => setQuality(PRESET_QUALITY[i])}>
+                    <Icon name={["globe","mail","printer","star"][i]} size={16} />
+                    <span style={{ textAlign:"center", width:"100%" }}>{name}</span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="field">
           <label>{t.compress.outputFormat}</label>

@@ -471,23 +471,10 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
           </div>
         </div>
 
-        {/* Output folder */}
-        <div className="field">
-          <label>{t.convert.output}</label>
-          <div style={{
-            display: "flex", alignItems: "center", gap: 8, padding: "10px 12px",
-            background: "var(--surface-2)", border: "1px solid var(--line)",
-            borderRadius: 10, fontFamily: "JetBrains Mono, monospace", fontSize: 12, color: "var(--ink-2)",
-          }}>
-            <Icon name="folder-export" size={14} />
-            <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {t.convert.outputPath}
-            </span>
-            <button style={{ border: 0, background: "transparent", color: "var(--coral-ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: '"Plus Jakarta Sans"' }}>
-              {t.convert.change}
-            </button>
-          </div>
-        </div>
+        {/* An "output folder ~/Pictures/Pixl Tweak" with a Change button used to
+            sit here. The path was invented and the button had no handler at
+            all — a browser cannot choose where a download lands. The done
+            banner already says where they went. */}
 
         {/* Summary card — queue size before, measured savings after */}
         <div className="summary">

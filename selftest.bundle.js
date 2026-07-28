@@ -532,18 +532,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
       on: settings.transparent,
       onChange: (v) => setSettings({ ...settings, transparent: v })
     }
-  ), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: "var(--ink-3)", paddingTop: hasAlpha ? 10 : 0, lineHeight: 1.45 } }, t.convert.metaNote)), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.convert.output), /* @__PURE__ */ React.createElement("div", { style: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "10px 12px",
-    background: "var(--surface-2)",
-    border: "1px solid var(--line)",
-    borderRadius: 10,
-    fontFamily: "JetBrains Mono, monospace",
-    fontSize: 12,
-    color: "var(--ink-2)"
-  } }, /* @__PURE__ */ React.createElement(Icon, { name: "folder-export", size: 14 }), /* @__PURE__ */ React.createElement("span", { style: { flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" } }, t.convert.outputPath), /* @__PURE__ */ React.createElement("button", { style: { border: 0, background: "transparent", color: "var(--coral-ink)", cursor: "pointer", fontSize: 12, fontWeight: 600, fontFamily: '"Plus Jakarta Sans"' } }, t.convert.change))), /* @__PURE__ */ React.createElement("div", { className: "summary" }, /* @__PURE__ */ React.createElement("div", { className: "summary-top" }, /* @__PURE__ */ React.createElement("span", { className: "lab" }, !results ? t.convert.queued : grew ? t.convert.totalGrew : t.convert.total), results && /* @__PURE__ */ React.createElement("span", { className: "summary-pill" + (grew ? " grew" : "") }, grew ? "+" : "\u2212", Math.abs(reductionPct), "%")), /* @__PURE__ */ React.createElement("div", { className: "summary-num", style: { fontFamily: "Fraunces" } }, headNum, /* @__PURE__ */ React.createElement("span", { className: "unit" }, headUnit)), results && /* @__PURE__ */ React.createElement("div", { className: "summary-bar" }, /* @__PURE__ */ React.createElement(
+  ), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 11.5, color: "var(--ink-3)", paddingTop: hasAlpha ? 10 : 0, lineHeight: 1.45 } }, t.convert.metaNote)), /* @__PURE__ */ React.createElement("div", { className: "summary" }, /* @__PURE__ */ React.createElement("div", { className: "summary-top" }, /* @__PURE__ */ React.createElement("span", { className: "lab" }, !results ? t.convert.queued : grew ? t.convert.totalGrew : t.convert.total), results && /* @__PURE__ */ React.createElement("span", { className: "summary-pill" + (grew ? " grew" : "") }, grew ? "+" : "\u2212", Math.abs(reductionPct), "%")), /* @__PURE__ */ React.createElement("div", { className: "summary-num", style: { fontFamily: "Fraunces" } }, headNum, /* @__PURE__ */ React.createElement("span", { className: "unit" }, headUnit)), results && /* @__PURE__ */ React.createElement("div", { className: "summary-bar" }, /* @__PURE__ */ React.createElement(
     "div",
     {
       className: "summary-bar-fill" + (grew ? " grew" : ""),
@@ -850,7 +839,6 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
 }
 function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const [selectedIdx, setSelectedIdx] = React.useState(0);
-  const [target, setTarget] = React.useState(0);
   const [quality, setQuality] = React.useState(72);
   const [format, setFormat] = React.useState("JPG");
   const [reduceColors, setReduceColors] = React.useState(false);
@@ -868,6 +856,8 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const sizeModeAvailable = format !== "PNG";
   const inSizeMode = mode === "size" && sizeModeAvailable;
   const targetBytes = inSizeMode ? Math.max(1, targetNum) * (targetUnit === "MB" ? 1e6 : 1e3) : 0;
+  const PRESET_QUALITY = [60, 50, 88];
+  const activePreset = PRESET_QUALITY.indexOf(quality);
   const totalBefore = selectedFile ? selectedFile.size : 0;
   const totalAfter = result ? result.bytes : null;
   const savings = totalBefore > 0 && totalAfter != null ? Math.round((1 - totalAfter / totalBefore) * 100) : null;
@@ -926,20 +916,21 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     }
   ) : fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 220, objectFit: "contain", display: "block" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "70%", maxWidth: 320 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), result && /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", marginTop: -8, marginBottom: 10 } }, result.met === false ? t.compress.targetMissed.replace("{target}", formatBytes(targetBytes)).replace("{size}", formatBytes(result.bytes)) : inSizeMode ? t.compress.targetMet.replace("{size}", formatBytes(result.bytes)).replace("{q}", result.quality) : t.compress.compareHint), /* @__PURE__ */ React.createElement("div", { className: "compare" }, /* @__PURE__ */ React.createElement("div", { className: "panel" }, /* @__PURE__ */ React.createElement("div", { className: "lab" }, t.compress.before), /* @__PURE__ */ React.createElement("div", { className: "num" }, formatBytes(totalBefore)), /* @__PURE__ */ React.createElement("div", { className: "meta" }, "1 ", t.compress.filesSingular, " \xB7 ", t.compress.originalQuality), /* @__PURE__ */ React.createElement("div", { className: "barwrap" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: { width: "100%" } }))), /* @__PURE__ */ React.createElement("div", { className: "panel after" }, /* @__PURE__ */ React.createElement("div", { className: "lab" }, t.compress.after), /* @__PURE__ */ React.createElement("div", { className: "num" }, totalAfter != null ? formatBytes(totalAfter) : "\u2014"), /* @__PURE__ */ React.createElement("div", { className: "meta" }, "1 ", t.compress.filesSingular, " \xB7 ", format, " q", result ? result.quality : inSizeMode ? "?" : quality), /* @__PURE__ */ React.createElement("div", { className: "barwrap" }, /* @__PURE__ */ React.createElement("div", { className: "fill", style: {
     width: totalAfter != null ? Math.max(4, totalAfter / totalBefore * 100) + "%" : "0%"
-  } })))))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.compress.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.target), /* @__PURE__ */ React.createElement("div", { className: "preset-grid" }, t.compress.targets.map((name, i) => /* @__PURE__ */ React.createElement(
-    "button",
-    {
-      key: i,
-      className: "preset " + (target === i ? "on" : ""),
-      style: { flexDirection: "column", gap: 4, alignItems: "center", justifyContent: "center", padding: "8px 4px" },
-      onClick: () => {
-        setTarget(i);
-        setQuality([60, 50, 88, quality][i]);
-      }
-    },
-    /* @__PURE__ */ React.createElement(Icon, { name: ["globe", "mail", "printer", "star"][i], size: 16 }),
-    /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, name)
-  )))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.outputFormat), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ["JPG", "PNG", "WEBP"].map((fmt) => /* @__PURE__ */ React.createElement(
+  } })))))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.compress.heading), !inSizeMode && /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.target), /* @__PURE__ */ React.createElement("div", { className: "preset-grid" }, t.compress.targets.map((name, i) => {
+    const lit = i === (activePreset === -1 ? 3 : activePreset);
+    return /* @__PURE__ */ React.createElement(
+      "button",
+      {
+        key: i,
+        className: "preset " + (lit ? "on" : ""),
+        style: { flexDirection: "column", gap: 4, alignItems: "center", justifyContent: "center", padding: "8px 4px" },
+        disabled: i === 3,
+        onClick: () => setQuality(PRESET_QUALITY[i])
+      },
+      /* @__PURE__ */ React.createElement(Icon, { name: ["globe", "mail", "printer", "star"][i], size: 16 }),
+      /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, name)
+    );
+  }))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.compress.outputFormat), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ["JPG", "PNG", "WEBP"].map((fmt) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: fmt,
