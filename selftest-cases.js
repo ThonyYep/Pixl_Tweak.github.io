@@ -720,6 +720,41 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("the resize preview reports the size the resize actually produces", async () => {
+  // The header echoed the typed numbers while runOne clamped them, so
+  // "1600×900 → 800×1200" shipped an 800×900 file. Both sides call
+  // resizeTargetDims now; this fails if either stops.
+  const src = solidCanvas(1600, 900);
+  const cases = [
+    // [w, h, fit, upscale]  fit: 0 contain, 1 cover, 2 stretch
+    [800, 1200, 0, false],   // box is taller than the source, but contain
+    [800, 1200, 1, false],   // scales by 0.5 too — nothing is enlarged
+    [800, 1200, 2, false],   // stretch really would enlarge the height
+    [3000, 3000, 0, false],  // genuine upscale, capped by scale not canvas
+    [800, 1200, 0, true],    // upscaling allowed: always the asked-for box
+  ];
+  for (const [w, h, fit, upscale] of cases) {
+    const promised = P.resizeTargetDims(1600, 900, w, h, fit, upscale);
+    const canvas   = P.resizeCanvas(src, promised.w, promised.h, fit, upscale);
+    assert(canvas.width === promised.w && canvas.height === promised.h,
+      `${w}×${h} fit=${fit} upscale=${upscale}: promised ${promised.w}×${promised.h}, produced ${canvas.width}×${canvas.height}`);
+  }
+});
+
+await test("resizing never enlarges the image when upscaling is off", async () => {
+  // A 40×30 source in a 400×400 box: the canvas is the box the user asked for,
+  // but the picture inside it must still be 40×30.
+  const src = solidCanvas(40, 30);
+  const c = P.resizeCanvas(src, 400, 400, 0, false);
+  const ctx = c.getContext("2d");
+  // Walk the middle row out from the centre until the drawn pixels stop.
+  const row = ctx.getImageData(0, 200, 400, 1).data;
+  let drawn = 0;
+  for (let x = 0; x < 400; x++) if (row[x * 4 + 3] > 0) drawn++;
+  assert(drawn <= 41, `image spans ${drawn}px across a 40px source — it was upscaled`);
+  assert(drawn >= 39, `image spans only ${drawn}px — it was shrunk instead`);
+});
+
 await test("max compression never returns a file larger than plain encoding", async () => {
   // MozJPEG loses on dense high-frequency detail at high quality — it measured
   // 101% larger than canvas at quality 95 — so the option has to fall back

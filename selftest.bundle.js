@@ -245,6 +245,7 @@ window.Processor = {
   canvasToBlob: ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   resizeCanvas: ENGINE.resizeCanvas,
+  resizeTargetDims: ENGINE.resizeTargetDims,
   posterizeCanvas: ENGINE.posterizeCanvas,
   preShrink: ENGINE.preShrink,
   encodeBMP: ENGINE.encodeBMP,
@@ -495,6 +496,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
       {
         key: size,
         className: "preset " + (sel ? "on" : ""),
+        "aria-pressed": sel,
         onClick: () => {
           const next = sel ? icoSizes.filter((s) => s !== size) : [...icoSizes, size].sort((a, b) => a - b);
           setSettings({ ...settings, icoSizes: next });
@@ -728,6 +730,7 @@ function FitButton({ label, tooltip, active, onClick }) {
     "button",
     {
       className: "preset " + (active ? "on" : ""),
+      "aria-pressed": active,
       onClick,
       onMouseEnter: () => setHover(true),
       onMouseLeave: () => setHover(false),
@@ -764,6 +767,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   const fileUrl = useFileUrl(selectedFile);
   const origDims = { w: selectedFile?.w || 0, h: selectedFile?.h || 0 };
   const measured = origDims.w > 0;
+  const outDims = measured ? Processor.resizeTargetDims(origDims.w, origDims.h, w, h, fit, upscale) : { w, h };
   const seeded = React.useRef(null);
   React.useEffect(() => {
     if (!measured) return;
@@ -800,12 +804,13 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     alignItems: "center",
     justifyContent: "center",
     minHeight: 220
-  } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 260, objectFit: "contain", display: "block", padding: 10, boxSizing: "border-box" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 300 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, w > 0 ? `${w}\xD7${h} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.resize.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.width, " & ", t.resize.height), /* @__PURE__ */ React.createElement("div", { className: "dim-row" }, /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.width), /* @__PURE__ */ React.createElement(
+  } }, fileUrl ? /* @__PURE__ */ React.createElement("img", { src: fileUrl, alt: "", style: { maxWidth: "100%", maxHeight: 260, objectFit: "contain", display: "block", padding: 10, boxSizing: "border-box" } }) : selectedFile && /* @__PURE__ */ React.createElement("div", { style: { width: "100%", maxWidth: 300 } }, /* @__PURE__ */ React.createElement(Thumb, { palette: selectedFile.palette }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, w > 0 ? `${outDims.w}\xD7${outDims.h} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.resize.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.resize.width, " & ", t.resize.height), /* @__PURE__ */ React.createElement("div", { className: "dim-row" }, /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.width), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
       inputMode: "numeric",
       value: measured ? w : "",
+      "aria-label": t.resize.width,
       disabled: !measured,
       placeholder: "\u2014",
       onChange: (e) => {
@@ -814,12 +819,23 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
       }
     }
-  )), /* @__PURE__ */ React.createElement("button", { className: "link " + (lock ? "on" : ""), onClick: () => setLock(!lock), title: t.resize.lock }, /* @__PURE__ */ React.createElement(Icon, { name: lock ? "lock" : "unlock", size: 16 })), /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.height), /* @__PURE__ */ React.createElement(
+  )), /* @__PURE__ */ React.createElement(
+    "button",
+    {
+      className: "link " + (lock ? "on" : ""),
+      onClick: () => setLock(!lock),
+      title: t.resize.lock,
+      "aria-label": t.resize.lock,
+      "aria-pressed": lock
+    },
+    /* @__PURE__ */ React.createElement(Icon, { name: lock ? "lock" : "unlock", size: 16 })
+  ), /* @__PURE__ */ React.createElement("div", { className: "num-input" }, /* @__PURE__ */ React.createElement("small", null, t.resize.height), /* @__PURE__ */ React.createElement(
     "input",
     {
       type: "text",
       inputMode: "numeric",
       value: measured ? h : "",
+      "aria-label": t.resize.height,
       disabled: !measured,
       placeholder: "\u2014",
       onChange: (e) => {
@@ -833,6 +849,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     {
       key: fmt,
       className: "preset " + (format === fmt ? "on" : ""),
+      "aria-pressed": format === fmt,
       onClick: () => setFormat(fmt)
     },
     /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, fmt)
@@ -945,6 +962,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
       {
         key: i,
         className: "preset " + (lit ? "on" : ""),
+        "aria-pressed": lit,
         style: { flexDirection: "column", gap: 4, alignItems: "center", justifyContent: "center", padding: "8px 4px" },
         disabled: i === 3,
         onClick: () => setQuality(PRESET_QUALITY[i])
@@ -957,6 +975,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     {
       key: fmt,
       className: "preset " + (format === fmt ? "on" : ""),
+      "aria-pressed": format === fmt,
       onClick: () => {
         setFormat(fmt);
         if (fmt !== "PNG") setReduceColors(false);
@@ -968,6 +987,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     {
       key: id,
       className: "preset " + (mode === id ? "on" : ""),
+      "aria-pressed": mode === id,
       onClick: () => setMode(id)
     },
     /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%" } }, name)
@@ -984,6 +1004,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     {
       key: u,
       className: "preset " + (targetUnit === u ? "on" : ""),
+      "aria-pressed": targetUnit === u,
       onClick: () => setTargetUnit(u)
     },
     /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, u)
@@ -992,6 +1013,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     {
       key: n,
       className: "preset " + (maxColors === n ? "on" : ""),
+      "aria-pressed": maxColors === n,
       onClick: () => setMaxColors(maxColors === n ? null : n)
     },
     /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace", fontSize: 11 } }, n)
@@ -1251,11 +1273,12 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
     background: `linear-gradient(135deg,${selectedFile.palette[0]} 0%,${selectedFile.palette[1]} 50%,${selectedFile.palette[2]} 100%)`,
     transform: `rotate(${rotation}deg) scale(${(flipH ? -1 : 1) * fitScale},${(flipV ? -1 : 1) * fitScale})`,
     transition: "transform .35s cubic-bezier(.32,1.6,.42,1)"
-  } }) : null), /* @__PURE__ */ React.createElement(CropCanvas, { key: resetKey, ratio, ratioLabel: ratios[ratio], imageDims: rotDims, onCropChange: setCropState }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement("input", { type: "range", min: "-180", max: "180", step: "1", value: rotation, onChange: (e) => setRotation(+e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8 } }, [-90, 0, 90, 180].map((deg) => /* @__PURE__ */ React.createElement(
+  } }) : null), /* @__PURE__ */ React.createElement(CropCanvas, { key: resetKey, ratio, ratioLabel: ratios[ratio], imageDims: rotDims, onCropChange: setCropState }))), /* @__PURE__ */ React.createElement("div", { style: { fontSize: 12, color: "var(--ink-3)", textAlign: "center", fontFamily: "JetBrains Mono,monospace" } }, origDims.w > 0 ? `${origDims.w}\xD7${origDims.h} px` : "\u2014", " \u2192 ", /* @__PURE__ */ React.createElement("span", { style: { color: "var(--coral-ink,var(--coral))", fontWeight: 600 } }, rotDims.w > 0 ? `${Math.round(cropState.w / 100 * rotDims.w)}\xD7${Math.round(cropState.h / 100 * rotDims.h)} px` : "\u2014")))), /* @__PURE__ */ React.createElement("aside", { className: "rail", style: { position: "static" } }, /* @__PURE__ */ React.createElement("h3", null, t.crop.heading), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.ratio), /* @__PURE__ */ React.createElement("div", { className: "preset-grid", style: { gridTemplateColumns: "1fr 1fr 1fr" } }, ratios.map((r, i) => /* @__PURE__ */ React.createElement("button", { key: i, className: "preset " + (ratio === i ? "on" : ""), "aria-pressed": ratio === i, onClick: () => setRatio(i) }, /* @__PURE__ */ React.createElement("span", { style: { textAlign: "center", width: "100%", fontFamily: "JetBrains Mono,monospace" } }, r))))), /* @__PURE__ */ React.createElement("div", { className: "field" }, /* @__PURE__ */ React.createElement("label", null, t.crop.rotate, /* @__PURE__ */ React.createElement("span", { style: { float: "right", color: "var(--ink-3)", textTransform: "none", letterSpacing: 0, fontWeight: 500 } }, rotation, "\xB0")), /* @__PURE__ */ React.createElement("div", { className: "slider-row" }, /* @__PURE__ */ React.createElement("input", { type: "range", min: "-180", max: "180", step: "1", value: rotation, onChange: (e) => setRotation(+e.target.value) })), /* @__PURE__ */ React.createElement("div", { style: { display: "flex", gap: 6, marginTop: 8 } }, [-90, 0, 90, 180].map((deg) => /* @__PURE__ */ React.createElement(
     "button",
     {
       key: deg,
       className: "preset " + (rotation === deg ? "on" : ""),
+      "aria-pressed": rotation === deg,
       style: { flex: 1, justifyContent: "center" },
       onClick: () => setRotation(deg)
     },
@@ -2000,6 +2023,40 @@ function brokenFile() {
       wasm.size < browser.size,
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
+  });
+  await test("the resize preview reports the size the resize actually produces", async () => {
+    const src = solidCanvas(1600, 900);
+    const cases = [
+      // [w, h, fit, upscale]  fit: 0 contain, 1 cover, 2 stretch
+      [800, 1200, 0, false],
+      // box is taller than the source, but contain
+      [800, 1200, 1, false],
+      // scales by 0.5 too — nothing is enlarged
+      [800, 1200, 2, false],
+      // stretch really would enlarge the height
+      [3e3, 3e3, 0, false],
+      // genuine upscale, capped by scale not canvas
+      [800, 1200, 0, true]
+      // upscaling allowed: always the asked-for box
+    ];
+    for (const [w, h, fit, upscale] of cases) {
+      const promised = P.resizeTargetDims(1600, 900, w, h, fit, upscale);
+      const canvas = P.resizeCanvas(src, promised.w, promised.h, fit, upscale);
+      assert(
+        canvas.width === promised.w && canvas.height === promised.h,
+        `${w}\xD7${h} fit=${fit} upscale=${upscale}: promised ${promised.w}\xD7${promised.h}, produced ${canvas.width}\xD7${canvas.height}`
+      );
+    }
+  });
+  await test("resizing never enlarges the image when upscaling is off", async () => {
+    const src = solidCanvas(40, 30);
+    const c = P.resizeCanvas(src, 400, 400, 0, false);
+    const ctx = c.getContext("2d");
+    const row = ctx.getImageData(0, 200, 400, 1).data;
+    let drawn = 0;
+    for (let x = 0; x < 400; x++) if (row[x * 4 + 3] > 0) drawn++;
+    assert(drawn <= 41, `image spans ${drawn}px across a 40px source \u2014 it was upscaled`);
+    assert(drawn >= 39, `image spans only ${drawn}px \u2014 it was shrunk instead`);
   });
   await test("max compression never returns a file larger than plain encoding", async () => {
     const c = busyCanvas(400);

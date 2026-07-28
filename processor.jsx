@@ -276,6 +276,7 @@ window.Processor = {
   canvasToBlob:       ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   resizeCanvas:       ENGINE.resizeCanvas,
+  resizeTargetDims:   ENGINE.resizeTargetDims,
   posterizeCanvas:    ENGINE.posterizeCanvas,
   preShrink:          ENGINE.preShrink,
   encodeBMP:          ENGINE.encodeBMP,

@@ -99,14 +99,32 @@ const ENGINE = (() => {
     return canvas;
   }
 
-  function resizeCanvas(src, targetW, targetH, fit) {
+  // What a resize actually produces. The resize header used to echo the typed
+  // numbers while runOne clamped them behind its back, so "1600×900 → 800×1200"
+  // shipped an 800×900 file. Both callers go through here now.
+  //
+  // Turning off upscaling means the image must not be enlarged. Only stretch
+  // enlarges by growing the canvas, so only stretch clamps the canvas — and it
+  // clamps each axis, which is right there because stretch has no aspect to
+  // keep. Contain and cover enlarge through the scale factor instead, which
+  // resizeCanvas caps, so their canvas stays exactly what was asked for.
+  function resizeTargetDims(sw, sh, targetW, targetH, fit, upscale) {
+    if (upscale !== false || fit !== 2) return { w: targetW, h: targetH };
+    return { w: Math.min(targetW, sw), h: Math.min(targetH, sh) };
+  }
+
+  function resizeCanvas(src, targetW, targetH, fit, upscale) {
     // fit: 0=contain, 1=cover, 2=stretch
     const sw = src.width, sh = src.height;
     let dw, dh;
     if (fit === 2) { dw = targetW; dh = targetH; }
     else {
-      const scale = fit === 1 ? Math.max(targetW / sw, targetH / sh)
-                              : Math.min(targetW / sw, targetH / sh);
+      let scale = fit === 1 ? Math.max(targetW / sw, targetH / sh)
+                            : Math.min(targetW / sw, targetH / sh);
+      // Capping the scale is what "no upscaling" has to mean here: asking for
+      // an 800×1200 box around a 1600×900 image scales it by 0.5, so nothing
+      // is being enlarged and the old canvas clamp fired for no reason.
+      if (upscale === false) scale = Math.min(scale, 1);
       dw = sw * scale; dh = sh * scale;
     }
     const shrunk = preShrink(src, dw, dh);
@@ -382,9 +400,9 @@ const ENGINE = (() => {
                      blob: await canvasToBlob(src, s.format, s.quality, s.transparent !== false, s.maxCompress) });
 
     } else if (op === "resize") {
-      let tw = s.w, th = s.h;
-      if (!s.upscale) { tw = Math.min(s.w, src.width); th = Math.min(s.h, src.height); }
-      const c = resizeCanvas(src, tw, th, s.fit || 0);
+      const fit = s.fit || 0;
+      const t = resizeTargetDims(src.width, src.height, s.w, s.h, fit, s.upscale);
+      const c = resizeCanvas(src, t.w, t.h, fit, s.upscale);
       outputs.push({ path: baseName(file.name) + "_resized." + (EXT[s.format] || "webp"),
                      blob: await canvasToBlob(c, s.format, 90, s.transparent) });
       releaseCanvas(c);
@@ -416,7 +434,7 @@ const ENGINE = (() => {
   }
 
   return { ctx2d, makeCanvas, decodeToCanvas, sourceCanvas, releaseCanvas,
-           preShrink, resizeContain, resizeCanvas, posterizeCanvas, encodeBMP, encodeICO,
+           preShrink, resizeContain, resizeCanvas, resizeTargetDims, posterizeCanvas, encodeBMP, encodeICO,
            canvasToBlob, encodeToTargetSize, cropRotate, outputName, runOne,
            MAX_COMPRESS_FORMATS };
 })();

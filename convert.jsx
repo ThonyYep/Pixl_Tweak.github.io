@@ -407,7 +407,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
                 const sel = icoSizes.includes(size);
                 return (
                   <button key={size}
-                    className={"preset " + (sel ? "on" : "")}
+                    className={"preset " + (sel ? "on" : "")} aria-pressed={sel}
                     onClick={() => {
                       const next = sel
                         ? icoSizes.filter(s => s !== size)

@@ -194,7 +194,7 @@ function FitButton({ label, tooltip, active, onClick }) {
   const [hover, setHover] = React.useState(false);
   return (
     <button
-      className={"preset " + (active ? "on" : "")}
+      className={"preset " + (active ? "on" : "")} aria-pressed={active}
       onClick={onClick}
       onMouseEnter={() => setHover(true)}
       onMouseLeave={() => setHover(false)}
@@ -235,6 +235,11 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
   // copied — the kind of pair that drifts.
   const origDims = { w: selectedFile?.w || 0, h: selectedFile?.h || 0 };
   const measured = origDims.w > 0;
+  // Derived, never mirrored: the same call runOne makes, so the preview cannot
+  // drift from the file that comes out.
+  const outDims = measured
+    ? Processor.resizeTargetDims(origDims.w, origDims.h, w, h, fit, upscale)
+    : { w, h };
 
   // Seed the output size once per file, when its size is actually known. App
   // decodes in the background, so on a big queue the fields used to sit at a
@@ -288,7 +293,11 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             <div style={{ fontSize:12, color:"var(--ink-3)", textAlign:"center", fontFamily:"JetBrains Mono,monospace" }}>
               {origDims.w > 0 ? `${origDims.w}×${origDims.h} px` : "—"}
               {" → "}
-              <span style={{ color:"var(--coral-ink,var(--coral))", fontWeight:600 }}>{w > 0 ? `${w}×${h} px` : "—"}</span>
+              {/* The engine's own answer, not the typed numbers. Echoing the
+                  fields promised "1600×900 → 800×1200" for a run that produced
+                  an 800×900 file. */}
+              <span style={{ color:"var(--coral-ink,var(--coral))", fontWeight:600 }}>
+                {w > 0 ? `${outDims.w}×${outDims.h} px` : "—"}</span>
             </div>
           </div>
         )}
@@ -300,20 +309,26 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <div className="field">
           <label>{t.resize.width} & {t.resize.height}</label>
           <div className="dim-row">
+            {/* The visible "Ancho"/"Alto" text sits in a <small>, so without
+                these the fields announced as an unnamed "edit text, 800" and
+                the lock read as a bare icon with no on/off state. */}
             <div className="num-input">
               <small>{t.resize.width}</small>
               <input type="text" inputMode="numeric" value={measured ? w : ""}
+                     aria-label={t.resize.width}
                      disabled={!measured} placeholder="—" onChange={e => {
                 const v = +e.target.value.replace(/\D/g, "") || 0; setW(v);
                 if (lock && ratio) setH(lockedPartner(v, ratio, "width"));
               }} />
             </div>
-            <button className={"link " + (lock?"on":"")} onClick={() => setLock(!lock)} title={t.resize.lock}>
+            <button className={"link " + (lock?"on":"")} onClick={() => setLock(!lock)}
+                    title={t.resize.lock} aria-label={t.resize.lock} aria-pressed={lock}>
               <Icon name={lock ? "lock" : "unlock"} size={16} />
             </button>
             <div className="num-input">
               <small>{t.resize.height}</small>
               <input type="text" inputMode="numeric" value={measured ? h : ""}
+                     aria-label={t.resize.height}
                      disabled={!measured} placeholder="—" onChange={e => {
                 const v = +e.target.value.replace(/\D/g, "") || 0; setH(v);
                 if (lock && ratio) setW(lockedPartner(v, ratio, "height"));
@@ -335,7 +350,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           <label>{t.resize.outputFormat}</label>
           <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr 1fr" }}>
             {["JPG","PNG","WEBP"].map(fmt => (
-              <button key={fmt} className={"preset " + (format===fmt?"on":"")}
+              <button key={fmt} className={"preset " + (format===fmt?"on":"")} aria-pressed={format===fmt}
                 onClick={() => setFormat(fmt)}>
                 <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace" }}>{fmt}</span>
               </button>
@@ -511,7 +526,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               {t.compress.targets.map((name, i) => {
                 const lit = i === (activePreset === -1 ? 3 : activePreset);
                 return (
-                  <button key={i} className={"preset " + (lit ? "on" : "")}
+                  <button key={i} className={"preset " + (lit ? "on" : "")} aria-pressed={lit}
                     style={{ flexDirection:"column", gap:4, alignItems:"center", justifyContent:"center", padding:"8px 4px" }}
                     disabled={i === 3}
                     onClick={() => setQuality(PRESET_QUALITY[i])}>
@@ -528,7 +543,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           <label>{t.compress.outputFormat}</label>
           <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr 1fr" }}>
             {["JPG","PNG","WEBP"].map(fmt => (
-              <button key={fmt} className={"preset " + (format===fmt?"on":"")}
+              <button key={fmt} className={"preset " + (format===fmt?"on":"")} aria-pressed={format===fmt}
                 onClick={() => { setFormat(fmt); if (fmt !== "PNG") setReduceColors(false); }}>
                 <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace" }}>{fmt}</span>
               </button>
@@ -541,7 +556,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             <label>{t.compress.mode}</label>
             <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr" }}>
               {[["quality", t.compress.modeQuality], ["size", t.compress.modeSize]].map(([id, name]) => (
-                <button key={id} className={"preset " + (mode === id ? "on" : "")}
+                <button key={id} className={"preset " + (mode === id ? "on" : "")} aria-pressed={mode === id}
                   onClick={() => setMode(id)}>
                   <span style={{ textAlign:"center", width:"100%" }}>{name}</span>
                 </button>
@@ -572,7 +587,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
               </div>
               <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr", flex:"0 0 110px" }}>
                 {["KB","MB"].map(u => (
-                  <button key={u} className={"preset " + (targetUnit === u ? "on" : "")}
+                  <button key={u} className={"preset " + (targetUnit === u ? "on" : "")} aria-pressed={targetUnit === u}
                     onClick={() => setTargetUnit(u)}>
                     <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace" }}>{u}</span>
                   </button>
@@ -596,7 +611,7 @@ function CompressTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
                   {/* 256 is gone: it means 256 levels per channel, which is
                       what 8-bit already is, so it changed nothing at all. */}
                   {[128,64,32,16].map(n => (
-                    <button key={n} className={"preset " + (maxColors===n?"on":"")}
+                    <button key={n} className={"preset " + (maxColors===n?"on":"")} aria-pressed={maxColors===n}
                       onClick={() => setMaxColors(maxColors===n ? null : n)}>
                       <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace", fontSize:11 }}>{n}</span>
                     </button>
@@ -944,7 +959,7 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           <label>{t.crop.ratio}</label>
           <div className="preset-grid" style={{ gridTemplateColumns:"1fr 1fr 1fr" }}>
             {ratios.map((r, i) => (
-              <button key={i} className={"preset " + (ratio===i?"on":"")} onClick={() => setRatio(i)}>
+              <button key={i} className={"preset " + (ratio===i?"on":"")} aria-pressed={ratio===i} onClick={() => setRatio(i)}>
                 <span style={{ textAlign:"center", width:"100%", fontFamily:"JetBrains Mono,monospace" }}>{r}</span>
               </button>
             ))}
@@ -961,7 +976,7 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           </div>
           <div style={{ display:"flex", gap:6, marginTop:8 }}>
             {[-90,0,90,180].map(deg => (
-              <button key={deg} className={"preset " + (rotation===deg?"on":"")}
+              <button key={deg} className={"preset " + (rotation===deg?"on":"")} aria-pressed={rotation===deg}
                 style={{ flex:1, justifyContent:"center" }}
                 onClick={() => setRotation(deg)}>
                 <span style={{ width:"100%", textAlign:"center", fontFamily:"JetBrains Mono,monospace" }}>{deg}°</span>
