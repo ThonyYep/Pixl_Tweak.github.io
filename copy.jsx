@@ -20,6 +20,7 @@ const COPY = {
       browse: "Browse files",
       folder: "Choose folder",
       sample: "Try with samples",
+      noImages: "No images in that folder — {n} files were skipped.",
       supported: "Supported formats",
     },
 
@@ -152,6 +153,7 @@ const COPY = {
       browse: "Buscar archivos",
       folder: "Elegir carpeta",
       sample: "Probar con ejemplos",
+      noImages: "Esa carpeta no tiene imágenes — se omitieron {n} archivos.",
       supported: "Formatos compatibles",
     },
 

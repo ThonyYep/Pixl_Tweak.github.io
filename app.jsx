@@ -190,7 +190,7 @@ function LangToggle({ lang, onChange }) {
   );
 }
 
-function DropZone({ t, onAccept, onBrowse, onFolder }) {
+function DropZone({ t, onAccept, onBrowse, onFolder, onSamples, note }) {
   const [hot, setHot] = React.useState(false);
 
   const particles = React.useMemo(() => {
@@ -245,10 +245,16 @@ function DropZone({ t, onAccept, onBrowse, onFolder }) {
         <button className="btn ghost" onClick={onFolder || onAccept}>
           <Icon name="folder" size={16} /> {t.drop.folder}
         </button>
-        <button className="btn soft" onClick={() => onAccept(null)}>
+        <button className="btn soft" onClick={onSamples}>
           <Icon name="sparkle" size={16} /> {t.drop.sample}
         </button>
       </div>
+
+      {note && (
+        <div role="status" style={{ marginTop: 14, fontSize: 13, color: "var(--coral-ink,var(--coral))", fontWeight: 600 }}>
+          {note}
+        </div>
+      )}
 
       <div style={{ marginTop: 22, fontSize: 11, color: "var(--ink-3)", letterSpacing: ".06em", fontWeight: 600, textTransform: "uppercase" }}>
         {t.drop.supported}
@@ -272,6 +278,7 @@ function App() {
   // Remembered between visits, and the first visit follows the browser rather
   // than a hardcoded light/Spanish. The English strings existed all along and
   // an English visitor never saw them.
+  const [dropNote, setDropNote] = React.useState("");
   const [theme, setTheme] = React.useState(preferredTheme);
   const [lang,  setLang]  = React.useState(preferredLang);
   const t = COPY[lang];
@@ -356,15 +363,25 @@ function App() {
   }
 
   // Replace all files (called from DropZone — navigates to Convert tab)
+  // An empty argument used to mean "load the samples", which made dropping
+  // anything file-less — a link, a text selection — silently fill the queue
+  // with five of the app's own gradients, presented exactly like an upload.
+  // Doing nothing is the right answer there; the drop zone is still on screen
+  // saying what it wants.
   function acceptFiles(realFiles) {
-    if (realFiles && realFiles.length > 0) {
-      const mapped = Array.from(realFiles).map(mapFile);
-      setFiles(mapped);
-      fillDims(mapped);
-    } else {
-      // Generated on demand, then indistinguishable from a real upload.
-      makeSampleFiles().then(setFiles);
-    }
+    const mapped = Array.from(realFiles || []).map(mapFile);
+    if (!mapped.length) return;
+    setDropNote("");
+    setFiles(mapped);
+    fillDims(mapped);
+    setMode("idle");
+    setTab("convert");
+  }
+
+  // Generated on demand, then indistinguishable from a real upload.
+  function loadSamples() {
+    setDropNote("");
+    makeSampleFiles().then(setFiles);
     setMode("idle");
     setTab("convert");
   }
@@ -392,8 +409,15 @@ function App() {
     input.type = "file"; input.multiple = true;
     input.webkitdirectory = true;
     input.onchange = e => {
-      const images = Array.from(e.target.files).filter(f => f.type.startsWith("image/"));
-      if (images.length > 0) acceptFiles(images);
+      const picked = Array.from(e.target.files);
+      const images = picked.filter(f => f.type.startsWith("image/"));
+      // Picking a folder is a deliberate multi-step action, so finding nothing
+      // in it has to say so — this used to return in silence.
+      if (!images.length) {
+        setDropNote(t.drop.noImages.replace("{n}", picked.length));
+        return;
+      }
+      acceptFiles(images);
     };
     input.click();
   }
@@ -406,7 +430,8 @@ function App() {
   }
 
   function renderTab() {
-    if (files.length === 0) return <DropZone t={t} onAccept={acceptFiles} onBrowse={openFilePicker} onFolder={openFolderPicker} />;
+    if (files.length === 0) return <DropZone t={t} onAccept={acceptFiles} onBrowse={openFilePicker}
+                                             onFolder={openFolderPicker} onSamples={loadSamples} note={dropNote} />;
     switch (tab) {
       case "convert":
         return (
