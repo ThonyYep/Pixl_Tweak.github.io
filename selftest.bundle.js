@@ -346,6 +346,15 @@ function errorMessage(t, e) {
   if (e.fmt) return t.convert.errFormat.replace("{fmt}", e.fmt);
   return t.convert.errRead;
 }
+function inputBytesBehind(files, errors, sizes) {
+  if (!sizes || !sizes.length) return 0;
+  if (sizes.some((s) => s.id == null)) {
+    const failed = new Set((errors || []).map((e) => e.id));
+    return files.filter((f) => !failed.has(f.id)).reduce((a, f) => a + f.size, 0);
+  }
+  const done = new Set(sizes.map((s) => s.id));
+  return files.filter((f) => done.has(f.id)).reduce((a, f) => a + f.size, 0);
+}
 function formatBytes(n) {
   if (n >= 1e7) return (n / 1e6).toFixed(2).replace(/\.?0+$/, "") + " MB";
   if (n >= 1e3) return (n / 1e3).toFixed(2).replace(/\.?0+$/, "") + " KB";
@@ -392,7 +401,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   );
   const totalOut = (results || []).reduce((a, s) => a + s.bytes, 0);
   const failedIds = new Set(errors.map((e) => e.id));
-  const inputDone = files.filter((f) => !failedIds.has(f.id)).reduce((a, f) => a + f.size, 0);
+  const inputDone = inputBytesBehind(files, errors, results);
   const delta = inputDone - totalOut;
   const grew = delta < 0;
   const reductionPct = inputDone > 0 ? Math.round((1 - totalOut / inputDone) * 100) : 0;
@@ -2046,6 +2055,32 @@ function brokenFile() {
       wasm.size < browser.size,
       `wasm ${wasm.size} B vs browser ${browser.size} B \u2014 no gain`
     );
+  });
+  await test("the savings figure counts only the inputs that produced output", async () => {
+    const files = [
+      { id: 1, size: 1e3 },
+      { id: 2, size: 2e3 },
+      { id: 3, size: 4e3 },
+      { id: 4, size: 8e3 }
+    ];
+    assert(
+      inputBytesBehind(files, [], [{ id: 1, bytes: 1 }, { id: 2, bytes: 1 }, { id: 3, bytes: 1 }, { id: 4, bytes: 1 }]) === 15e3,
+      "a clean run must count every file"
+    );
+    assert(
+      inputBytesBehind(files, [{ id: 2 }, { id: 4 }], [{ id: 1, bytes: 1 }, { id: 3, bytes: 1 }]) === 5e3,
+      "failures must not be counted as converted"
+    );
+    assert(
+      inputBytesBehind(files, [], [{ id: 1, bytes: 1 }, { id: 2, bytes: 1 }]) === 3e3,
+      "a cancel must not count the files it never reached"
+    );
+    assert(
+      inputBytesBehind(files, [{ id: 4 }], [{ id: null, bytes: 1 }]) === 7e3,
+      "a merged output must count every input that did not fail"
+    );
+    assert(inputBytesBehind(files, [], null) === 0, "no results means no denominator");
+    assert(inputBytesBehind(files, [], []) === 0, "an empty result set means no denominator");
   });
   await test("a target-size search does not run on a format with no quality knob", async () => {
     const c = busyCanvas(300);

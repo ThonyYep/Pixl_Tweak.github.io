@@ -122,6 +122,29 @@ function errorMessage(t, e) {
   return t.convert.errRead;
 }
 
+// The input bytes that produced the output bytes — the denominator behind
+// "you saved X" and the left side of the "A → B" footer.
+//
+// Wrong twice, both times by picking the wrong set. It first used every file
+// in the queue, so 2 failures out of 4 showed "7.98 KB → 1.47 KB" beside
+// "−76%". Then it used files-minus-failures, which is not the same thing on a
+// cancelled run: the files a cancel never reached are neither results nor
+// errors, so stopping a 63.51 MB queue at three of eight claimed 59.13 MB
+// saved against a real 19.18 MB.
+//
+// The only set that is always right is the one the results actually name.
+function inputBytesBehind(files, errors, sizes) {
+  if (!sizes || !sizes.length) return 0;
+  // A merged PDF is a single output with no per-file id, so nothing is named:
+  // there, every input that did not fail went into it.
+  if (sizes.some(s => s.id == null)) {
+    const failed = new Set((errors || []).map(e => e.id));
+    return files.filter(f => !failed.has(f.id)).reduce((a, f) => a + f.size, 0);
+  }
+  const done = new Set(sizes.map(s => s.id));
+  return files.filter(f => done.has(f.id)).reduce((a, f) => a + f.size, 0);
+}
+
 function formatBytes(n) {
   if (n >= 10_000_000) return (n / 1_000_000).toFixed(2).replace(/\.?0+$/, "") + " MB";
   if (n >= 1_000)      return (n / 1_000).toFixed(2).replace(/\.?0+$/, "") + " KB";
@@ -227,7 +250,7 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
     [results]);
   const totalOut  = (results || []).reduce((a, s) => a + s.bytes, 0);
   const failedIds = new Set(errors.map(e => e.id));
-  const inputDone = files.filter(f => !failedIds.has(f.id)).reduce((a, f) => a + f.size, 0);
+  const inputDone = inputBytesBehind(files, errors, results);
   // Signed on purpose. Clamping this to zero meant a PNG-to-BMP run that grew
   // 355 KB into 1.9 MB reported "saved 0 KB" — the one number the user came
   // for, hidden exactly when it mattered.

@@ -720,6 +720,34 @@ await test("MozJPEG is smaller than the browser's JPEG at the same quality", asy
     `wasm ${wasm.size} B vs browser ${browser.size} B — no gain`);
 });
 
+await test("the savings figure counts only the inputs that produced output", async () => {
+  // This number has been wrong twice, each time by choosing the wrong set of
+  // files. The three shapes below are the three that actually occur.
+  const files = [{ id:1, size:1000 }, { id:2, size:2000 },
+                 { id:3, size:4000 }, { id:4, size:8000 }];
+
+  // Everything succeeded.
+  assert(inputBytesBehind(files, [], [{id:1,bytes:1},{id:2,bytes:1},{id:3,bytes:1},{id:4,bytes:1}]) === 15000,
+    "a clean run must count every file");
+
+  // Two failed: their bytes are not savings, they are files that never moved.
+  assert(inputBytesBehind(files, [{id:2},{id:4}], [{id:1,bytes:1},{id:3,bytes:1}]) === 5000,
+    "failures must not be counted as converted");
+
+  // Cancelled after two of four. The untouched files raise no error at all,
+  // which is exactly what the previous version missed.
+  assert(inputBytesBehind(files, [], [{id:1,bytes:1},{id:2,bytes:1}]) === 3000,
+    "a cancel must not count the files it never reached");
+
+  // Merged PDF: one output, no per-file id, so every non-failed input fed it.
+  assert(inputBytesBehind(files, [{id:4}], [{id:null,bytes:1}]) === 7000,
+    "a merged output must count every input that did not fail");
+
+  // Nothing ran yet.
+  assert(inputBytesBehind(files, [], null) === 0, "no results means no denominator");
+  assert(inputBytesBehind(files, [], []) === 0, "an empty result set means no denominator");
+});
+
 await test("a target-size search does not run on a format with no quality knob", async () => {
   // PNG ignores the quality argument, so the binary search re-encoded the same
   // bytes seven times and then reported "quality 100" as if it had chosen one.
