@@ -15,6 +15,12 @@ const LOOK = {
 // Preferences survive a reload. localStorage throws when storage is disabled
 // or the page is sandboxed, and remembering a theme is not worth breaking the
 // app over, so both directions swallow it.
+// Filled in by build.mjs from a hash of the sources. Readable as PIXL_BUILD in
+// the console and shown in the footer, so which build a tab is running is a
+// fact you can check rather than deduce from behaviour.
+const PIXL_BUILD = "__PIXL_BUILD__";
+window.PIXL_BUILD = PIXL_BUILD;
+
 const PREF = "pixl.";
 function recall(key, allowed) {
   try {
@@ -506,7 +512,7 @@ function App() {
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
                 {offlineReady && <><span>{t.footer.offline}</span><span>·</span></>}
-                <span style={{ fontFamily:"JetBrains Mono, monospace" }}>{t.footer.version}</span>
+                <span style={{ fontFamily:"JetBrains Mono, monospace" }}>{t.footer.version} · {PIXL_BUILD}</span>
               </div>
             </div>
           )}
