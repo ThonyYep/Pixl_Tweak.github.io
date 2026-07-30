@@ -390,7 +390,7 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
           </div>
         </div>
 
-        {(format === "PNG" || format === "WEBP") && (
+        {FMT_HAS_ALPHA.has(format) && (
           <div className="field">
             <ToggleRow label={t.resize.transparent} on={transparent} onChange={setTransparent} />
           </div>
@@ -405,7 +405,6 @@ function ResizeTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
             {t.resize.appliesToAll.replace("{n}", files.length)}
           </div>
         )}
-
         <ErrorNote t={t} errors={errors} />
 
         <div className="actions">
@@ -1024,6 +1023,15 @@ function CropTab({ t, files, onAddFiles, onDropFiles, onClearFiles }) {
         <div className="field">
           <ToggleRow label={t.crop.flipH} on={flipH} onChange={setFlipH} />
           <ToggleRow label={t.crop.flipV} on={flipV} onChange={setFlipV} />
+        </div>
+
+
+        {/* There is no format picker here on purpose — cropping is lossless and
+            re-encoding a JPG as a JPG would degrade it again. But staying silent
+            about it meant a 761 KB photo came back as a 5160 KB PNG, 6.8x
+            larger, with nothing on screen saying why. */}
+        <div style={{ fontSize:11.5, color:"var(--ink-3)", lineHeight:1.45, marginTop:4 }}>
+          {t.crop.outputNote}
         </div>
 
         <ErrorNote t={t} errors={errors} />

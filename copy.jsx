@@ -119,6 +119,7 @@ const COPY = {
       flipH: "Flip horizontal",
       flipV: "Flip vertical",
       reset: "Reset",
+      outputNote: "Saved as a lossless PNG, so nothing is re-compressed — expect a larger file than a JPG input.",
       apply: "Apply",
     },
 
@@ -251,6 +252,7 @@ const COPY = {
       flipH: "Voltear horizontal",
       flipV: "Voltear vertical",
       reset: "Restablecer",
+      outputNote: "Se guarda como PNG sin pérdida, así que nada se recomprime — espera un archivo más grande que un JPG de entrada.",
       apply: "Aplicar",
     },
 
