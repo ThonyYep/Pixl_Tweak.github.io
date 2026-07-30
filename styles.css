@@ -1180,7 +1180,10 @@ body::before {
 .compare .panel .barwrap {
   margin-top: 10px;
   height: 8px;
-  background: white;
+  /* Was a hardcoded white, which never followed the theme: a glaring white
+     sliver on the dark panel at 16.4:1, and invisible against the white surface
+     in light, so the empty part of the bar had no edge at all. */
+  background: var(--line-2);
   border-radius: 999px;
   overflow: hidden;
 }
@@ -1191,7 +1194,10 @@ body::before {
   width: 100%;
   transition: width .5s var(--ease);
 }
-.compare .panel.after .barwrap .fill { background: linear-gradient(90deg, var(--sage), var(--sky)); }
+/* Solid, not a gradient to --sky: that end sat at 2.0:1 on the track, and no
+   single blue clears 3:1 on both themes' tracks. The bar means saving, which
+   is what the green already says. */
+.compare .panel.after .barwrap .fill { background: var(--sage); }
 
 /* ─── footer chips ──────────────────────────────────────────────── */
 .footer {
