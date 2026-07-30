@@ -203,6 +203,37 @@ function brokenFile() {
     }
   });
 
+  await test("an encoder that would crop past its own limit refuses instead", async () => {
+    // WebP holds width and height in 14 bits. Past 16383 the browser does not
+    // fail — it crops and says nothing: a 17000×1000 canvas came back
+    // 16383×1000 with the rightmost 617px of picture gone, while the row went
+    // on reporting 17000. PNG and JPEG have no such ceiling here and must not
+    // be caught by the guard.
+    const wide = document.createElement("canvas");
+    wide.width = 16400; wide.height = 8;      // 0.13 megapixels, nowhere near the area cap
+    const wctx = wide.getContext("2d");
+    wctx.fillStyle = "#c0392b"; wctx.fillRect(0, 0, wide.width, wide.height);
+
+    let refused = false;
+    try { await P.canvasToBlob(wide, "WEBP", 90, false); }
+    catch (e) { refused = /^CANVAS_TOO_LARGE:/.test(e.message); }
+    assert(refused, "WEBP accepted 16400px wide and would have cropped it");
+
+    for (const fmt of ["PNG", "JPG"]) {
+      const b = await P.canvasToBlob(wide, fmt, 90, false);
+      const bmp = await createImageBitmap(b);
+      assert(bmp.width === 16400, `${fmt} came back ${bmp.width}px wide, expected 16400`);
+    }
+
+    // Just inside the ceiling still works.
+    const ok = document.createElement("canvas");
+    ok.width = 16383; ok.height = 8;
+    ok.getContext("2d").fillRect(0, 0, ok.width, ok.height);
+    const b = await P.canvasToBlob(ok, "WEBP", 90, false);
+    const bmp = await createImageBitmap(b);
+    assert(bmp.width === 16383, `16383 was refused or cropped to ${bmp.width}`);
+  });
+
   // ── Bug 4: real dimensions are readable from an uploaded file ──────────
   await test("loadImage reports real pixel dimensions", async () => {
     const png = await P.canvasToBlob(solidCanvas(137, 89), "PNG", 90, true);

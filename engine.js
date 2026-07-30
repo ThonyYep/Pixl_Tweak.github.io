@@ -246,6 +246,13 @@ const ENGINE = (() => {
     }
     return codecs[name];
   }
+  // Per-format dimension ceilings. WebP stores width and height in 14 bits, so
+  // 16383 is its hard maximum — and the browser does not refuse past it, it
+  // silently crops: a 17000×1000 canvas came back 16383×1000 with the rightmost
+  // 617px of picture simply gone, while the app went on reporting 17000. JPEG
+  // tops out at 65535; PNG is past anything a canvas can hold.
+  const MAX_DIM = { WEBP: 16383, JPG: 65535 };
+
   const MAX_COMPRESS_FORMATS = new Set(["JPG", "PNG"]);
   // Formats whose encoder actually reads a quality argument. PNG's does not —
   // canvas ignores the value and OxiPNG is never handed one. The compress tab
@@ -285,6 +292,14 @@ const ENGINE = (() => {
       ctx.drawImage(canvas, 0, 0);
       src = flat;
     }
+    // Refused before the encode rather than after, since the encoder will not
+    // report the crop and the caller would trust the size it asked for.
+    const dimLimit = MAX_DIM[format];
+    if (dimLimit && (src.width > dimLimit || src.height > dimLimit)) {
+      if (src !== canvas) releaseCanvas(src);
+      throw new Error("CANVAS_TOO_LARGE:" + src.width + "×" + src.height);
+    }
+
     let blob;
     if (format === "BMP") {
       blob = encodeBMP(src);

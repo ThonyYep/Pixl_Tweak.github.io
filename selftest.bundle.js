@@ -1606,6 +1606,33 @@ function brokenFile() {
       assert(!find(u, "Exif"), `${fmt} carried the input's EXIF through`);
     }
   });
+  await test("an encoder that would crop past its own limit refuses instead", async () => {
+    const wide = document.createElement("canvas");
+    wide.width = 16400;
+    wide.height = 8;
+    const wctx = wide.getContext("2d");
+    wctx.fillStyle = "#c0392b";
+    wctx.fillRect(0, 0, wide.width, wide.height);
+    let refused = false;
+    try {
+      await P.canvasToBlob(wide, "WEBP", 90, false);
+    } catch (e) {
+      refused = /^CANVAS_TOO_LARGE:/.test(e.message);
+    }
+    assert(refused, "WEBP accepted 16400px wide and would have cropped it");
+    for (const fmt of ["PNG", "JPG"]) {
+      const b2 = await P.canvasToBlob(wide, fmt, 90, false);
+      const bmp2 = await createImageBitmap(b2);
+      assert(bmp2.width === 16400, `${fmt} came back ${bmp2.width}px wide, expected 16400`);
+    }
+    const ok = document.createElement("canvas");
+    ok.width = 16383;
+    ok.height = 8;
+    ok.getContext("2d").fillRect(0, 0, ok.width, ok.height);
+    const b = await P.canvasToBlob(ok, "WEBP", 90, false);
+    const bmp = await createImageBitmap(b);
+    assert(bmp.width === 16383, `16383 was refused or cropped to ${bmp.width}`);
+  });
   await test("loadImage reports real pixel dimensions", async () => {
     const png = await P.canvasToBlob(solidCanvas(137, 89), "PNG", 90, true);
     const img = await P.loadImage(new File([png], "x.png", { type: "image/png" }));
