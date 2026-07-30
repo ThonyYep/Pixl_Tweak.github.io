@@ -269,9 +269,13 @@ const ENGINE = (() => {
 
   async function canvasToBlob(canvas, format, quality, transparent, maxCompress) {
     const q = (quality == null ? 82 : quality) / 100;
-    if (format === "BMP") return encodeBMP(canvas);
-    // JPG has no alpha channel at all; the others flatten only if asked.
-    const noAlpha = format === "JPG" || transparent === false;
+    // JPG has no alpha channel at all, and BMP is written as BI_RGB 32bpp where
+    // the fourth byte is officially undefined — so neither has alpha to keep.
+    // BMP used to return before this flatten ran, which sent transparent
+    // regions through verbatim as (0,0,0,0). Decoders that correctly ignore that
+    // byte then showed them as opaque BLACK, while every other format flattens
+    // onto white, and the transparent flag did nothing at all for BMP.
+    const noAlpha = format === "JPG" || format === "BMP" || transparent === false;
     let src = canvas;
     if (noAlpha) {
       const flat = makeCanvas(canvas.width, canvas.height);
@@ -282,7 +286,9 @@ const ENGINE = (() => {
       src = flat;
     }
     let blob;
-    if (maxCompress && MAX_COMPRESS_FORMATS.has(format)) {
+    if (format === "BMP") {
+      blob = encodeBMP(src);
+    } else if (maxCompress && MAX_COMPRESS_FORMATS.has(format)) {
       // MozJPEG and OxiPNG usually win by a wide margin — but not always. On
       // dense high-frequency detail at quality 95, MozJPEG measured 101%
       // LARGER than the browser encoder, and "max compression" that doubles

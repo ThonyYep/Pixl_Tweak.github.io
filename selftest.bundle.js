@@ -1610,6 +1610,61 @@ function brokenFile() {
       `got ${img.naturalWidth}\xD7${img.naturalHeight}`
     );
   });
+  await test("BMP flattens transparency onto white, not black", async () => {
+    const src = document.createElement("canvas");
+    src.width = 40;
+    src.height = 20;
+    const sctx = src.getContext("2d");
+    sctx.fillStyle = "rgb(220,40,40)";
+    sctx.fillRect(0, 0, 20, 20);
+    for (const transparent of [true, false]) {
+      const blob = await P.canvasToBlob(src, "BMP", 100, transparent);
+      const u = new Uint8Array(await blob.arrayBuffer());
+      const at = (x, y) => {
+        const o = 54 + (y * 40 + x) * 4;
+        return { b: u[o], g: u[o + 1], r: u[o + 2] };
+      };
+      const clear = at(30, 10), kept = at(10, 10);
+      assert(
+        clear.r > 245 && clear.g > 245 && clear.b > 245,
+        `transparent:${transparent} \u2014 clear half is rgb(${clear.r},${clear.g},${clear.b}), expected white`
+      );
+      assert(
+        kept.r > 200 && kept.g < 80 && kept.b < 80,
+        `transparent:${transparent} \u2014 the red half came out rgb(${kept.r},${kept.g},${kept.b})`
+      );
+    }
+  });
+  await test("BMP survives a round trip with its rows the right way up", async () => {
+    const c = document.createElement("canvas");
+    c.width = 80;
+    c.height = 60;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "rgb(255,0,0)";
+    ctx.fillRect(0, 0, 40, 30);
+    ctx.fillStyle = "rgb(0,255,0)";
+    ctx.fillRect(40, 0, 40, 30);
+    ctx.fillStyle = "rgb(0,0,255)";
+    ctx.fillRect(0, 30, 40, 30);
+    ctx.fillStyle = "rgb(255,255,0)";
+    ctx.fillRect(40, 30, 40, 30);
+    const blob = await P.canvasToBlob(c, "BMP", 100, false);
+    const u = new Uint8Array(await blob.arrayBuffer());
+    const dv = new DataView(u.buffer);
+    assert(String.fromCharCode(u[0], u[1]) === "BM", "not a BMP");
+    assert(dv.getUint32(2, true) === u.length, "the header's file size is wrong");
+    assert(dv.getInt32(22, true) === -60, "height should be negative for top-down rows");
+    const back = await createImageBitmap(blob);
+    const t = document.createElement("canvas");
+    t.width = back.width;
+    t.height = back.height;
+    t.getContext("2d").drawImage(back, 0, 0);
+    const q = (x, y) => [...t.getContext("2d").getImageData(x, y, 1, 1).data].slice(0, 3).join(",");
+    assert(q(10, 10) === "255,0,0", `top-left is ${q(10, 10)} \u2014 rows or channels are wrong`);
+    assert(q(70, 10) === "0,255,0", `top-right is ${q(70, 10)}`);
+    assert(q(10, 50) === "0,0,255", `bottom-left is ${q(10, 50)}`);
+    assert(q(70, 50) === "255,255,0", `bottom-right is ${q(70, 50)}`);
+  });
   await test("BMP header is well formed", () => {
     const c = solidCanvas(10, 5);
     const blob = P.encodeBMP(c);
