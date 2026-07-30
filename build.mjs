@@ -11,6 +11,8 @@ import { transform } from "esbuild";
 import { readFile, writeFile, mkdir, copyFile, readdir } from "node:fs/promises";
 import { dirname } from "node:path";
 
+const VERSION = JSON.parse(await readFile("package.json", "utf8")).version;
+
 // The WASM codecs are vendored rather than pulled from a CDN, because the app
 // claims to work offline and a CDN would make that false again for anyone who
 // turned the option on. Copied verbatim: every file below resolves its
@@ -63,7 +65,10 @@ const BUNDLES = [
 
 for (const { out, src, minify } of BUNDLES) {
   const parts = await Promise.all(src.map(f => readFile(f, "utf8")));
-  const joined = src.map((f, i) => `// ── ${f} ${"─".repeat(Math.max(0, 60 - f.length))}\n${parts[i]}`).join("\n");
+  let joined = src.map((f, i) => `// ── ${f} ${"─".repeat(Math.max(0, 60 - f.length))}\n${parts[i]}`).join("\n");
+  // The footer used to carry its own copy of the version, so bumping
+  // package.json quietly left the app claiming the old one.
+  joined = joined.replaceAll("__PIXL_VERSION__", VERSION);
   const result = await transform(joined, {
     loader: "jsx",
     // Not "module": these run as classic scripts and must keep sloppy-mode

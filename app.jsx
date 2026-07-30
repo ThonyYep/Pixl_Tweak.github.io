@@ -278,6 +278,20 @@ function App() {
   // Remembered between visits, and the first visit follows the browser rather
   // than a hardcoded light/Spanish. The English strings existed all along and
   // an English visitor never saw them.
+  // "Works offline" was printed unconditionally, so a browser that never
+  // registered a service worker — private mode, a CSP, an insecure origin —
+  // still got the promise. A controller is the only proof the cache is in
+  // place; on a first visit it arrives once sw.js calls clients.claim().
+  const [offlineReady, setOfflineReady] = React.useState(
+    () => !!(navigator.serviceWorker && navigator.serviceWorker.controller));
+  React.useEffect(() => {
+    const sw = navigator.serviceWorker;
+    if (!sw) return;
+    const sync = () => setOfflineReady(!!sw.controller);
+    sw.addEventListener("controllerchange", sync);
+    return () => sw.removeEventListener("controllerchange", sync);
+  }, []);
+
   const [dropNote, setDropNote] = React.useState("");
   const [theme, setTheme] = React.useState(preferredTheme);
   const [lang,  setLang]  = React.useState(preferredLang);
@@ -487,8 +501,7 @@ function App() {
                 <span className="chip">{formatBytes(files.reduce((a, f) => a + f.size, 0))}</span>
               </div>
               <div style={{ display:"flex", alignItems:"center", gap:10 }}>
-                <span>{t.footer.offline}</span>
-                <span>·</span>
+                {offlineReady && <><span>{t.footer.offline}</span><span>·</span></>}
                 <span style={{ fontFamily:"JetBrains Mono, monospace" }}>{t.footer.version}</span>
               </div>
             </div>

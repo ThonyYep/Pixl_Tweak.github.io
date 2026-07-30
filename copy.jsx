@@ -130,7 +130,7 @@ const COPY = {
     footer: {
       ready: "Ready",
       offline: "Works offline",
-      version: "v2.4.1",
+      version: "v__PIXL_VERSION__",
     },
   },
 
@@ -263,7 +263,7 @@ const COPY = {
     footer: {
       ready: "Listo",
       offline: "Funciona sin conexión",
-      version: "v2.4.1",
+      version: "v__PIXL_VERSION__",
     },
   },
 };
