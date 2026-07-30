@@ -1421,3 +1421,36 @@ body { font-family: "Plus Jakarta Sans", sans-serif; }
   outline-offset: 2px;
   box-shadow: 0 0 0 4px rgba(0, 0, 0, .45);
 }
+
+/* ── Touch targets ─────────────────────────────────────────────────────────
+   Measured at 375px by hit-testing the corners of a 24px box centred on each
+   control — the WCAG 2.5.8 minimum. Three came back under it: the quality
+   slider hit 0 of 4 corners on a 6px-tall track, the row's remove button 1 of
+   4, and "clear all" 0 of 4 because its label stays collapsed until hover and
+   touch never hovers. Same trick as .toggle::after above: grow the hit area,
+   change nothing visible. */
+.slider-row input[type="range"] {
+  /* The track stays 6px; the box around it is what fingers aim at. 28 rather
+     than exactly 24 so the edge is inside the target, not on it. */
+  height: 28px;
+  background: linear-gradient(var(--tint), var(--tint)) center / 100% 6px no-repeat;
+  border-radius: 0;
+}
+/* Clear-all keeps its label collapsed until hover, and touch never hovers, so
+   it sat at 21px wide. It also carries overflow:hidden inline for that label
+   animation, which clips a pseudo-element — so this widens the box instead. */
+.file-list .head button {
+  min-width: 44px;
+}
+.file-row .x {
+  position: relative;
+}
+.file-row .x::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 44px;
+  height: 44px;
+}
