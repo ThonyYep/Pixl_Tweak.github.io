@@ -127,6 +127,82 @@ function brokenFile() {
     assert(r > 240 && g > 240 && b > 240, `clear area should be white, got rgb(${r},${g},${b})`);
   });
 
+  // A landscape JPEG carrying EXIF Orientation=6 — what a phone held sideways
+  // writes. The stripe is on the LEFT, so after the 90° clockwise rotation the
+  // tag asks for it must end up along the TOP.
+  async function sidewaysJpeg() {
+    const c = document.createElement("canvas");
+    c.width = 200; c.height = 100;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle = "#c0392b"; ctx.fillRect(0, 0, 200, 100);
+    ctx.fillStyle = "#2980b9"; ctx.fillRect(0, 0, 40, 100);
+    const plain = new Uint8Array(await (await new Promise(r => c.toBlob(r, "image/jpeg", 0.92))).arrayBuffer());
+    const app1 = [0xFF,0xE1,0x00,0x22, 0x45,0x78,0x69,0x66,0x00,0x00,
+      0x49,0x49,0x2A,0x00,0x08,0x00,0x00,0x00, 0x01,0x00,
+      0x12,0x01,0x03,0x00,0x01,0x00,0x00,0x00,0x06,0x00,0x00,0x00, 0x00,0x00,0x00,0x00];
+    const out = new Uint8Array(2 + app1.length + (plain.length - 2));
+    out.set([0xFF,0xD8], 0); out.set(app1, 2); out.set(plain.subarray(2), 2 + app1.length);
+    return new File([out], "sideways.jpg", { type: "image/jpeg" });
+  }
+
+  await test("a sideways phone photo comes out upright", async () => {
+    // engine.js relies on the decoder applying EXIF orientation. If that ever
+    // stops being true, every portrait phone photo ships on its side and
+    // nothing else in the suite would notice.
+    const canvas = await P.getSourceCanvas({ blob: await sidewaysJpeg() });
+    assert(canvas.width === 100 && canvas.height === 200,
+      `decoded as ${canvas.width}×${canvas.height}, expected the rotated 100×200`);
+    const ctx = canvas.getContext("2d");
+    const near = (px, want) => Math.abs(px[0]-want[0]) < 30 && Math.abs(px[1]-want[1]) < 30
+                            && Math.abs(px[2]-want[2]) < 30;
+    const top    = ctx.getImageData(50, 5, 1, 1).data;
+    const bottom = ctx.getImageData(50, canvas.height - 6, 1, 1).data;
+    assert(near(top, [41, 128, 185]), `top is rgb(${top[0]},${top[1]},${top[2]}), expected the blue stripe`);
+    assert(near(bottom, [192, 57, 43]), `bottom is rgb(${bottom[0]},${bottom[1]},${bottom[2]}), expected red`);
+  });
+
+  await test("re-encoding carries no metadata from the input", async () => {
+    // The convert rail tells users their metadata is not carried over. That is
+    // a privacy statement, so it gets checked rather than assumed.
+    //
+    // Note what the claim does and does not say. It promises the input's EXIF,
+    // GPS and colour profile are gone and the output is sRGB — not that the
+    // output carries no profile at all. Chrome does embed a 456-byte sRGB
+    // profile in a JPEG, which makes the sRGB-ness explicit rather than
+    // contradicting the note. So the assertion is about the input's bytes not
+    // surviving, which is the part that matters for privacy.
+    const MARKER = "PIXL-TEST-WIDEGAMUT-PROFILE";
+    const tagged = await sidewaysJpeg();          // already carries EXIF
+    const withProfile = await (async () => {
+      const u = new Uint8Array(await tagged.arrayBuffer());
+      const payload = [...("ICC_PROFILE " + MARKER)].map(ch => ch.charCodeAt(0));
+      const len = payload.length + 2;
+      const app2 = [0xFF, 0xE2, (len >> 8) & 0xFF, len & 0xFF, ...payload];
+      const out = new Uint8Array(2 + app2.length + (u.length - 2));
+      out.set([0xFF, 0xD8], 0); out.set(app2, 2); out.set(u.subarray(2), 2 + app2.length);
+      return new File([out], "profiled.jpg", { type: "image/jpeg" });
+    })();
+
+    const inBytes = new Uint8Array(await withProfile.arrayBuffer());
+    const find = (u, text) => {
+      const bs = [...text].map(ch => ch.charCodeAt(0));
+      outer: for (let i = 0; i < u.length - bs.length; i++) {
+        for (let j = 0; j < bs.length; j++) if (u[i + j] !== bs[j]) continue outer;
+        return true;
+      }
+      return false;
+    };
+    assert(find(inBytes, MARKER), "the fixture failed to embed its own marker");
+    assert(find(inBytes, "Exif"), "the fixture failed to embed EXIF");
+
+    const canvas = await P.getSourceCanvas({ blob: withProfile });
+    for (const fmt of ["JPG", "PNG", "WEBP"]) {
+      const u = new Uint8Array(await (await P.canvasToBlob(canvas, fmt, 90, true)).arrayBuffer());
+      assert(!find(u, MARKER), `${fmt} carried the input's colour profile through`);
+      assert(!find(u, "Exif"), `${fmt} carried the input's EXIF through`);
+    }
+  });
+
   // ── Bug 4: real dimensions are readable from an uploaded file ──────────
   await test("loadImage reports real pixel dimensions", async () => {
     const png = await P.canvasToBlob(solidCanvas(137, 89), "PNG", 90, true);
