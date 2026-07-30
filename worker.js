@@ -11,14 +11,8 @@ importScripts("engine.js");
 // cancel, and one cancel stopped every job in flight.
 const cancelledJobs = new Set();
 
-// Errors cross the postMessage boundary as codes, not Error objects, because
-// only the message survives structured cloning intact.
-function classify(err) {
-  const msg = (err && err.message) || "";
-  const fmt = /^UNSUPPORTED_OUTPUT:(\w+)/.exec(msg);
-  const big = /^CANVAS_TOO_LARGE:(\S+)/.exec(msg);
-  return { fmt: fmt ? fmt[1] : null, tooBig: big ? big[1] : null };
-}
+// engine.js owns the error classifier; both threads share the one copy.
+const classify = ENGINE.classifyError;
 
 self.onmessage = async (e) => {
   const msg = e.data;
@@ -56,7 +50,7 @@ self.onmessage = async (e) => {
   }
   } catch (err) {
     postMessage({ jobId, type: "failed", fileId: null, name: null,
-                  fmt: null, tooBig: null, detail: String(err && err.message || err) });
+                  fmt: null, tooBig: null, fmtTooBig: null, detail: String(err && err.message || err) });
   }
 
   const wasCancelled = stopped();

@@ -224,6 +224,31 @@ function brokenFile() {
     assert(r.outputs[0].blob.size > low, "an unset quality collapsed to the floor");
   });
 
+  await test("the two size refusals are told apart, and survive the worker hop", async () => {
+    // They need different answers: past the browser's canvas cap you shrink the
+    // image, past a format's own ceiling you pick another format. Telling
+    // someone to shrink a picture PNG would have taken whole is wrong advice.
+    const cap = P.classifyError(new Error("CANVAS_TOO_LARGE:20000×15000"));
+    assert(cap.tooBig === "20000×15000", "the browser cap lost its dimensions");
+    assert(cap.fmtTooBig === null, "the browser cap was read as a format limit");
+
+    const fmt = P.classifyError(new Error("FORMAT_MAX_DIM:WEBP:17000×12750:16383"));
+    assert(fmt.tooBig === null, "the format limit was read as a browser cap");
+    assert(fmt.fmtTooBig && fmt.fmtTooBig.fmt === "WEBP", "lost the format");
+    assert(fmt.fmtTooBig.dims === "17000×12750", "lost the dimensions");
+    assert(fmt.fmtTooBig.limit === 16383, "lost the ceiling");
+
+    // The worker sends codes, not Error objects. This is the round trip that
+    // silently dropped the new field while two copies of the classifier existed.
+    const wire = JSON.parse(JSON.stringify({ detail: "FORMAT_MAX_DIM:WEBP:17000×12750:16383" }));
+    const rebuilt = P.classifyError({ message: wire.detail });
+    assert(rebuilt.fmtTooBig && rebuilt.fmtTooBig.limit === 16383,
+      "the classification did not survive being sent as a string");
+
+    // Neither shape may fall through to "could not read this file".
+    for (const e of [cap, fmt]) assert(e.tooBig || e.fmtTooBig, "fell through to errRead");
+  });
+
   await test("an encoder that would crop past its own limit refuses instead", async () => {
     // WebP holds width and height in 14 bits. Past 16383 the browser does not
     // fail — it crops and says nothing: a 17000×1000 canvas came back
@@ -235,10 +260,13 @@ function brokenFile() {
     const wctx = wide.getContext("2d");
     wctx.fillStyle = "#c0392b"; wctx.fillRect(0, 0, wide.width, wide.height);
 
-    let refused = false;
+    let code = null;
     try { await P.canvasToBlob(wide, "WEBP", 90, false); }
-    catch (e) { refused = /^CANVAS_TOO_LARGE:/.test(e.message); }
-    assert(refused, "WEBP accepted 16400px wide and would have cropped it");
+    catch (e) { code = e.message; }
+    assert(code, "WEBP accepted 16400px wide and would have cropped it");
+    // Its own code, not CANVAS_TOO_LARGE: the browser could hold this surface
+    // fine, so the fix is a different format rather than a smaller image.
+    assert(/^FORMAT_MAX_DIM:WEBP:/.test(code), "refused with the wrong code: " + code);
 
     for (const fmt of ["PNG", "JPG"]) {
       const b = await P.canvasToBlob(wide, fmt, 90, false);

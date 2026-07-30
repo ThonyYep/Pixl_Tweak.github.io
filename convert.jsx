@@ -124,6 +124,10 @@ function doneMessage(t, n, grew, bytes) {
 // an image that is simply too big sends the user hunting in the wrong place.
 function errorMessage(t, e) {
   if (e.packaging) return t.convert.errPackaging;
+  if (e.fmtTooBig) return t.convert.errFormatTooBig
+                     .replace("{fmt}", e.fmtTooBig.fmt)
+                     .replace("{dims}", e.fmtTooBig.dims)
+                     .replace("{limit}", e.fmtTooBig.limit);
   if (e.tooBig)    return t.convert.errTooBig.replace("{dims}", e.tooBig);
   if (e.fmt)       return t.convert.errFormat.replace("{fmt}", e.fmt);
   return t.convert.errRead;

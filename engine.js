@@ -294,10 +294,16 @@ const ENGINE = (() => {
     }
     // Refused before the encode rather than after, since the encoder will not
     // report the crop and the caller would trust the size it asked for.
+    //
+    // Its own error, not CANVAS_TOO_LARGE: that one means the browser cannot
+    // hold a surface this big and the answer is a smaller image, while this one
+    // means the chosen format cannot describe it and the answer is a different
+    // format. Sending someone to shrink a picture PNG would have taken whole is
+    // the wrong advice.
     const dimLimit = MAX_DIM[format];
     if (dimLimit && (src.width > dimLimit || src.height > dimLimit)) {
       if (src !== canvas) releaseCanvas(src);
-      throw new Error("CANVAS_TOO_LARGE:" + src.width + "×" + src.height);
+      throw new Error("FORMAT_MAX_DIM:" + format + ":" + src.width + "×" + src.height + ":" + dimLimit);
     }
 
     let blob;
@@ -414,6 +420,22 @@ const ENGINE = (() => {
   // and the .ico came out with four entries.
   const ICO_DEFAULT_SIZES = [16, 32, 48, 256];
 
+  // Errors cross the worker boundary as codes, not Error objects — only the
+  // message survives structured cloning. This turns one back into fields.
+  //
+  // It lives here because it used to exist twice, once in worker.js and once in
+  // processor.jsx, and adding FORMAT_MAX_DIM to only one of them meant the
+  // worker path reported "could not read this file" for an image it had read
+  // perfectly well.
+  function classifyError(err) {
+    const msg = (err && err.message) || "";
+    const fmt  = /^UNSUPPORTED_OUTPUT:(\w+)/.exec(msg);
+    const big  = /^CANVAS_TOO_LARGE:(\S+)/.exec(msg);
+    const fdim = /^FORMAT_MAX_DIM:(\w+):(\S+?):(\d+)$/.exec(msg);
+    return { fmt: fmt ? fmt[1] : null, tooBig: big ? big[1] : null,
+             fmtTooBig: fdim ? { fmt: fdim[1], dims: fdim[2], limit: +fdim[3] } : null };
+  }
+
   const EXT = { JPG:"jpg", PNG:"png", WEBP:"webp", BMP:"bmp", PDF:"pdf", ICO:"ico" };
   const outputName = (name, format) =>
     name.replace(/\.[^/.]+$/, "") + "." + (EXT[format] || format.toLowerCase());
@@ -492,7 +514,7 @@ const ENGINE = (() => {
 
   return { ctx2d, makeCanvas, decodeToCanvas, sourceCanvas, releaseCanvas,
            preShrink, resizeContain, resizeCanvas, resizeTargetDims, posterizeCanvas, encodeBMP, encodeICO,
-           canvasToBlob, encodeToTargetSize, hasQualityKnob, cropRotate, outputName, runOne,
+           canvasToBlob, encodeToTargetSize, hasQualityKnob, classifyError, cropRotate, outputName, runOne,
            ICO_DEFAULT_SIZES,
            MAX_COMPRESS_FORMATS };
 })();

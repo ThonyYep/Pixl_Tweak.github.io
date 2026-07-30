@@ -5,6 +5,9 @@
 // which cannot run in a worker. Plus the fallback for browsers without
 // OffscreenCanvas, where the same engine runs inline.
 
+// engine.js owns this; worker.js reads the same one.
+const classifyError = ENGINE.classifyError;
+
 const CAN_OFFLOAD = typeof Worker !== "undefined" && typeof OffscreenCanvas !== "undefined";
 
 let _worker = null;
@@ -249,7 +252,10 @@ function runJob(op, files, settings, onProgress, onDone) {
     if (m.jobId !== jobId) return;
     if (m.type === "progress") report(m.fileId, m.pct, m.state);
     else if (m.type === "result") results.push(m);
-    else if (m.type === "failed") errors.push({ id: m.fileId, name: m.name, fmt: m.fmt, tooBig: m.tooBig });
+    else if (m.type === "failed") errors.push({ id: m.fileId, name: m.name,
+      // spread, not a hand-picked pair: naming the fields here is how a new
+      // classification silently stopped crossing the worker boundary.
+      ...classifyError({ message: m.detail }) });
     else if (m.type === "done") {
       w.removeEventListener("message", onMsg);
       state.cancelled = state.cancelled || m.cancelled;
@@ -260,12 +266,7 @@ function runJob(op, files, settings, onProgress, onDone) {
   w.postMessage({ type: "run", jobId, op, files: toPayload(files), settings });
 }
 
-function classifyError(err) {
-  const msg = (err && err.message) || "";
-  const fmt = /^UNSUPPORTED_OUTPUT:(\w+)/.exec(msg);
-  const big = /^CANVAS_TOO_LARGE:(\S+)/.exec(msg);
-  return { fmt: fmt ? fmt[1] : null, tooBig: big ? big[1] : null };
-}
+
 
 const processConvert  = (f, s, p, d) => runJob("convert",  f, s, p, d);
 const processResize   = (f, s, p, d) => runJob("resize",   f, s, p, d);
@@ -292,6 +293,7 @@ window.Processor = {
   canvasToBlob:       ENGINE.canvasToBlob,
   encodeToTargetSize: ENGINE.encodeToTargetSize,
   hasQualityKnob:     ENGINE.hasQualityKnob,
+  classifyError:      ENGINE.classifyError,
   ICO_DEFAULT_SIZES:  ENGINE.ICO_DEFAULT_SIZES,
   resizeCanvas:       ENGINE.resizeCanvas,
   resizeTargetDims:   ENGINE.resizeTargetDims,
