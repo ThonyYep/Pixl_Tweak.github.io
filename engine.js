@@ -445,8 +445,12 @@ const ENGINE = (() => {
       outputs.push({ path: `${baseName(file.name)}/${baseName(file.name)}.ico`, blob: await encodeICO(sized) });
 
     } else if (op === "convert" && s.format === "PDF") {
+      // The pages are JPEG, so the quality slider the convert rail shows for PDF
+      // has something real to drive. It was pinned at 92 here, which made that
+      // slider decorative: quality 10 and quality 100 both produced the same
+      // 693,236-byte document, byte for byte.
       outputs.push({ path: outputName(file.name, "PDF"), pdfSource: true,
-                     blob: await canvasToBlob(src, "JPG", 92, false) });
+                     blob: await canvasToBlob(src, "JPG", s.quality == null ? 92 : s.quality, false) });
 
     } else if (op === "convert") {
       outputs.push({ path: outputName(file.name, s.format),

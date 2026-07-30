@@ -203,6 +203,27 @@ function brokenFile() {
     }
   });
 
+  await test("the PDF pages honour the quality setting", async () => {
+    // The convert rail shows a quality slider for PDF, and the pages are JPEG,
+    // so it has something real to drive. runOne pinned it at 92 instead: moving
+    // the slider from 10 to 100 produced the same 693,236-byte document twice.
+    const png = await P.canvasToBlob(busyCanvas(400), "PNG", 100, true);
+    const file = { id: 1, name: "x.png", blob: png };
+    const at = async quality => {
+      const r = await ENGINE.runOne(file, "convert", { format: "PDF", quality }, () => {});
+      assert(r.outputs.length === 1 && r.outputs[0].pdfSource,
+        "the PDF branch should hand back one JPEG for the caller to assemble");
+      return r.outputs[0].blob.size;
+    };
+    const low = await at(10), mid = await at(60), high = await at(100);
+    assert(low < mid && mid < high,
+      `not monotonic: ${low} / ${mid} / ${high} bytes at quality 10 / 60 / 100`);
+
+    // Left unset it keeps the old default rather than falling to 0.
+    const r = await ENGINE.runOne(file, "convert", { format: "PDF" }, () => {});
+    assert(r.outputs[0].blob.size > low, "an unset quality collapsed to the floor");
+  });
+
   await test("an encoder that would crop past its own limit refuses instead", async () => {
     // WebP holds width and height in 14 bits. Past 16383 the browser does not
     // fail — it crops and says nothing: a 17000×1000 canvas came back

@@ -1606,6 +1606,27 @@ function brokenFile() {
       assert(!find(u, "Exif"), `${fmt} carried the input's EXIF through`);
     }
   });
+  await test("the PDF pages honour the quality setting", async () => {
+    const png = await P.canvasToBlob(busyCanvas(400), "PNG", 100, true);
+    const file = { id: 1, name: "x.png", blob: png };
+    const at = async (quality) => {
+      const r2 = await ENGINE.runOne(file, "convert", { format: "PDF", quality }, () => {
+      });
+      assert(
+        r2.outputs.length === 1 && r2.outputs[0].pdfSource,
+        "the PDF branch should hand back one JPEG for the caller to assemble"
+      );
+      return r2.outputs[0].blob.size;
+    };
+    const low = await at(10), mid = await at(60), high = await at(100);
+    assert(
+      low < mid && mid < high,
+      `not monotonic: ${low} / ${mid} / ${high} bytes at quality 10 / 60 / 100`
+    );
+    const r = await ENGINE.runOne(file, "convert", { format: "PDF" }, () => {
+    });
+    assert(r.outputs[0].blob.size > low, "an unset quality collapsed to the floor");
+  });
   await test("an encoder that would crop past its own limit refuses instead", async () => {
     const wide = document.createElement("canvas");
     wide.width = 16400;
