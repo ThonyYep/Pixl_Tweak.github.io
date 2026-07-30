@@ -81,7 +81,11 @@ function Tabs({ t, value, onChange, fileCount }) {
     if (btn) {
       const r = btn.getBoundingClientRect();
       const p = el.getBoundingClientRect();
-      setPill({ left: r.left - p.left, width: r.width });
+      // The bar scrolls when the labels outrun it, and the pill is positioned
+      // inside that scrolling content — so it needs the content offset, not the
+      // visual one. Without scrollLeft the pill lagged by exactly the scroll
+      // distance and then stuck there.
+      setPill({ left: r.left - p.left + el.scrollLeft, width: r.width });
     }
   }, [value, t, fileCount, isMobile]);
 

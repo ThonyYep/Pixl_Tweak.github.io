@@ -297,8 +297,17 @@ body::before {
   padding: 6px;
   border-radius: 999px;
   margin-bottom: 22px;
+  /* fit-content alone sized the bar to its labels and ignored the container,
+     so between the 600px mobile breakpoint and roughly 670px the bar ran 583px
+     wide inside a 512px column and .window's overflow:hidden simply cut the
+     last tab off — 19px of "Recortar" gone, with no scrollbar to reach it.
+     Capped and scrollable instead; the part-visible tab is the affordance. */
   width: fit-content;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 .tabs .tab {
   position: relative;
   z-index: 1;
