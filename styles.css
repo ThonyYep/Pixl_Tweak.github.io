@@ -30,7 +30,6 @@
   --coral-soft: color-mix(in oklab, var(--coral), white 72%);
   --butter: #f6c453;
   --butter-soft: #fce8b3;
-  --butter-ink: #9a6f00;
   --sage: #6fc6a0;
   --sage-soft: #d6f0e2;
   /* The done banner's second gradient stop. It was the literal #d8eef0 in
@@ -41,8 +40,6 @@
      4.5 AA wants. */
   --sage-ink: #2a6e4c;
   --sky: #8fb8ff;
-  --sky-soft: #dfe9ff;
-  --lilac: #c9a8ff;
 
   --radius: 18px;
   --radius-sm: 10px;
@@ -50,7 +47,6 @@
 
   /* density */
   --pad: 18px;
-  --gap: 10px;
 
   /* motion */
   --spring: cubic-bezier(.32, 1.6, .42, 1);
@@ -85,7 +81,6 @@
   /* lift up *-ink + darken *-soft for proper contrast on dark surfaces */
   --coral-ink: color-mix(in oklab, var(--coral), white 26%);
   --coral-soft: color-mix(in oklab, var(--coral), black 72%);
-  --butter-ink: color-mix(in oklab, var(--butter), white 18%);
   --butter-soft: color-mix(in oklab, var(--butter), black 75%);
   --sage-ink: color-mix(in oklab, var(--sage), white 22%);
   --sage-soft: color-mix(in oklab, var(--sage), black 70%);
