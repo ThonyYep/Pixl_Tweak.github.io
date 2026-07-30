@@ -81,7 +81,10 @@ const ALL_FORMATS = ["AVIF","BMP","GIF","ICO","JPG","JPEG","PNG","SVG","WEBP"];
 // Probed once at load — see Processor.canEncode.
 const DEFAULT_FORMAT = Processor.canEncode("image/webp") ? "WEBP" : "JPG";
 
-// Formats that support a quality/compression slider
+// Formats that support a quality/compression slider. PDF belongs here even
+// though engine.js's QUALITY_FORMATS omits it — its pages are JPEG, so the
+// slider drives something real. The two sets answer different questions and
+// are not meant to match; a selftest asserts the property they both serve.
 const FMT_HAS_QUALITY = new Set(["JPG","WEBP","PDF"]);
 // Formats that support transparency
 const FMT_HAS_ALPHA   = new Set(["PNG","WEBP"]);

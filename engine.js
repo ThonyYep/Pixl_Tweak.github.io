@@ -258,6 +258,11 @@ const ENGINE = (() => {
   // canvas ignores the value and OxiPNG is never handed one. The compress tab
   // hides its target-size mode off this, and encodeToTargetSize skips the
   // search off this, so the two cannot disagree.
+  //
+  // Deliberately NOT the same set as convert.jsx's FMT_HAS_QUALITY, which also
+  // lists PDF: a PDF's pages are JPEG, so the slider is real there, but PDF is
+  // not an encoder this can hand a canvas to. Adding it here would send
+  // encodeToTargetSize binary-searching a format it cannot encode.
   const QUALITY_FORMATS = new Set(["JPG", "WEBP"]);
   const hasQualityKnob = format => QUALITY_FORMATS.has(format);
 

@@ -224,6 +224,28 @@ function brokenFile() {
     assert(r.outputs[0].blob.size > low, "an unset quality collapsed to the floor");
   });
 
+  await test("a quality control is offered exactly where quality changes the bytes", async () => {
+    // Two lists answer near-identical questions and deliberately disagree:
+    // engine QUALITY_FORMATS is JPG+WEBP — encoders that take a quality
+    // argument — while the rail's FMT_HAS_QUALITY adds PDF, whose pages are
+    // JPEG. Making them match would break target-size search, which would then
+    // try to binary-search a format that is not an encoder at all. So this
+    // asserts the property both are meant to serve, and neither list directly.
+    const png = await P.canvasToBlob(busyCanvas(360), "PNG", 100, true);
+    const file = { id: 1, name: "x.png", blob: png };
+    const sizeAt = async (format, quality) => {
+      const r = await ENGINE.runOne(file, "convert",
+        { format, quality, icoSizes: [32] }, () => {});
+      return r.outputs.reduce((a, o) => a + o.blob.size, 0);
+    };
+    for (const fmt of FORMATS) {
+      const moves = (await sizeAt(fmt, 15)) !== (await sizeAt(fmt, 95));
+      assert(moves === FMT_HAS_QUALITY.has(fmt),
+        moves ? `${fmt} responds to quality but the rail hides the slider`
+              : `${fmt} shows a quality slider that changes nothing`);
+    }
+  });
+
   await test("the two size refusals are told apart, and survive the worker hop", async () => {
     // They need different answers: past the browser's canvas cap you shrink the
     // image, past a format's own ceiling you pick another format. Telling
