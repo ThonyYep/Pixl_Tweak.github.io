@@ -60,10 +60,15 @@ function downloadBlob(blob, filename) {
   setTimeout(() => URL.revokeObjectURL(url), 8000);
 }
 
+// Returns the archive's own size. The summary reports what you downloaded, not
+// the sum of what is inside it — five PDFs adding up to 173 KB arrive as a
+// 113 KB zip, and 173 was never a number the user paid for.
 async function downloadZip(entries, zipName) {
   const zip = new JSZip();
   for (const { path, blob } of entries) zip.file(path, blob);
-  downloadBlob(await zip.generateAsync({ type: "blob", compression: "DEFLATE" }), zipName);
+  const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  downloadBlob(archive, zipName);
+  return archive.size;
 }
 
 // ── PDF: jsPDF needs the DOM, so the worker hands back JPEGs and the pages
@@ -146,6 +151,8 @@ async function finish(op, settings, results, errors, cancelled, onDone) {
   const sizes = [];
   const entries = [];
   const failures = errors.slice();
+  // Set only when the outputs were zipped: the bytes that actually landed.
+  let packagedBytes = null;
 
   // Everything in here can throw — JSZip or jsPDF missing, a zip too big to
   // build. If it does, the caller still has to hear back: an onDone that never
@@ -172,7 +179,7 @@ async function finish(op, settings, results, errors, cancelled, onDone) {
       downloadBlob(entries[0].blob, entries[0].path);
     } else if (entries.length > 1) {
       const single = results.length === 1;
-      await downloadZip(entries, single
+      packagedBytes = await downloadZip(entries, single
         ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip"
         : ZIP_NAME[op] || "pixl-tweak-export.zip");
     }
@@ -181,7 +188,7 @@ async function finish(op, settings, results, errors, cancelled, onDone) {
     failures.push({ id: null, name: null, fmt: null, tooBig: null, packaging: true });
   }
 
-  onDone(failures.length === 0 && !cancelled, failures, sizes, cancelled);
+  onDone(failures.length === 0 && !cancelled, failures, sizes, cancelled, packagedBytes);
 }
 
 const ZIP_NAME = { convert: "pixl-tweak-export.zip", resize: "pixl-tweak-resized.zip",

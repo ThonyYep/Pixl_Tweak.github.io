@@ -54,7 +54,9 @@ function downloadBlob(blob, filename) {
 async function downloadZip(entries, zipName) {
   const zip = new JSZip();
   for (const { path, blob } of entries) zip.file(path, blob);
-  downloadBlob(await zip.generateAsync({ type: "blob", compression: "DEFLATE" }), zipName);
+  const archive = await zip.generateAsync({ type: "blob", compression: "DEFLATE" });
+  downloadBlob(archive, zipName);
+  return archive.size;
 }
 const blobToDataURL = (blob) => new Promise((resolve, reject) => {
   const r = new FileReader();
@@ -114,6 +116,7 @@ async function finish(op, settings, results, errors, cancelled, onDone) {
   const sizes = [];
   const entries = [];
   const failures = errors.slice();
+  let packagedBytes = null;
   try {
     const pdfSources = results.flatMap((r) => r.outputs.filter((o) => o.pdfSource));
     if (pdfSources.length && settings.mergePDF && results.length > 1) {
@@ -143,13 +146,13 @@ async function finish(op, settings, results, errors, cancelled, onDone) {
       downloadBlob(entries[0].blob, entries[0].path);
     } else if (entries.length > 1) {
       const single = results.length === 1;
-      await downloadZip(entries, single ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip" : ZIP_NAME[op] || "pixl-tweak-export.zip");
+      packagedBytes = await downloadZip(entries, single ? results[0].name.replace(/\.[^/.]+$/, "") + ".zip" : ZIP_NAME[op] || "pixl-tweak-export.zip");
     }
   } catch (err) {
     console.error("packaging the results failed:", err);
     failures.push({ id: null, name: null, fmt: null, tooBig: null, packaging: true });
   }
-  onDone(failures.length === 0 && !cancelled, failures, sizes, cancelled);
+  onDone(failures.length === 0 && !cancelled, failures, sizes, cancelled, packagedBytes);
 }
 const ZIP_NAME = {
   convert: "pixl-tweak-export.zip",
@@ -403,7 +406,8 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
     () => Object.fromEntries((results || []).filter((s) => s.id != null).map((s) => [s.id, s.bytes])),
     [results]
   );
-  const totalOut = (results || []).reduce((a, s) => a + s.bytes, 0);
+  const packaged = job?.packagedBytes;
+  const totalOut = mode === "done" && packaged != null ? packaged : (results || []).reduce((a, s) => a + s.bytes, 0);
   const failedIds = new Set(errors.map((e) => e.id));
   const inputDone = inputBytesBehind(files, errors, results);
   const delta = inputDone - totalOut;

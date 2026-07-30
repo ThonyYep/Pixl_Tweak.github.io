@@ -255,7 +255,14 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
   const outById   = React.useMemo(
     () => Object.fromEntries((results || []).filter(s => s.id != null).map(s => [s.id, s.bytes])),
     [results]);
-  const totalOut  = (results || []).reduce((a, s) => a + s.bytes, 0);
+  // What actually landed on disk. Several outputs leave as one zip, and the
+  // sum of what is inside it is not what was downloaded — five PDFs adding to
+  // 173 KB arrive as a 113 KB archive. The rows still show their own sizes,
+  // which is what you get once it is extracted.
+  const packaged  = job?.packagedBytes;
+  const totalOut  = mode === "done" && packaged != null
+    ? packaged
+    : (results || []).reduce((a, s) => a + s.bytes, 0);
   const failedIds = new Set(errors.map(e => e.id));
   const inputDone = inputBytesBehind(files, errors, results);
   // Signed on purpose. Clamping this to zero meant a PNG-to-BMP run that grew

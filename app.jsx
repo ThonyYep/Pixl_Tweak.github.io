@@ -340,8 +340,9 @@ function App() {
         ...j,
         progress: { ...j.progress, [fileId]: { v: pct, state: state || (pct >= 100 ? "done" : "going") } },
       })),
-      (ok, errs, sizes, wasCancelled) => {
-        setJob(j => j && ({ ...j, errors: errs || [], sizes: sizes || [], stopped: !!wasCancelled }));
+      (ok, errs, sizes, wasCancelled, packagedBytes) => {
+        setJob(j => j && ({ ...j, errors: errs || [], sizes: sizes || [],
+                            stopped: !!wasCancelled, packagedBytes }));
         setTimeout(() => setMode("done"), 300);
       }
     );

@@ -14,7 +14,8 @@ Interface is bilingual (Español / English).
 
 **Convert** — batch convert to PNG, JPG, WebP, BMP, PDF or ICO. One file
 downloads directly; several arrive as a ZIP. PDF can merge the whole batch into
-a single multi-page document. ICO exports a real multi-size icon (8–256 px, your
+a single multi-page document. The saving is measured against the file you
+actually download — the archive, not the sum of what is inside it. ICO exports a real multi-size icon (8–256 px, your
 pick) alongside a PNG of each size.
 
 **Resize** — width and height with optional aspect lock, three fit modes and an
