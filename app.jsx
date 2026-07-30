@@ -3,12 +3,11 @@
 // The last two values from the prototyping host's tweak panel that CSS still
 // reads at runtime. Tone, density, typeface and animation speed used to be
 // adjustable; their rules now sit in styles.css with the values baked in.
+// The accent used to live here and get injected into --coral for both themes at
+// once, which is exactly why it could not satisfy either: one value cannot be
+// dark enough to carry white text and light enough to read on a dark surface.
+// It is a per-theme token in styles.css now, alongside --accent-on.
 const LOOK = {
-  // Every white-on-accent surface derives from this. At the old #6aa3ff the
-  // primary button painted white text on a gradient whose lightest stop hit
-  // 2.18:1, well under the 4.5:1 WCAG AA asks for normal text. This is the
-  // same hue at 60% brightness, which clears it at 4.54:1.
-  accent: "#406299",
   radius: 18,
 };
 
@@ -351,7 +350,6 @@ function App() {
   // Fixed look — written once.
   React.useEffect(() => {
     const root = document.documentElement;
-    root.style.setProperty("--coral",     LOOK.accent);
     root.style.setProperty("--radius-lg", LOOK.radius * 1.4 + "px");
     root.style.setProperty("--radius",    LOOK.radius + "px");
     root.style.setProperty("--radius-sm", Math.max(6, LOOK.radius * .55) + "px");

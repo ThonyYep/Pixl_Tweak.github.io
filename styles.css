@@ -2,21 +2,21 @@
 
 :root {
   /* surface palette */
-  --bg: #fbf3e4;
-  --bg-2: #f6e9d2;
+  --bg: #faf1e1;
+  --bg-2: #f5e8cf;
   --surface: #ffffff;
-  --surface-2: #fffaf2;
+  --surface-2: #fefaf1;
   /* First stop of the wordmark's gradient TEXT. It cannot be --coral: that
      one is a fill sitting behind white text, so it has to be dark, and a
      dark stop on a dark surface left the wordmark at 2.63:1 where large
      text needs 3. This flips per theme instead — 6.13:1 on white,
      6.37:1 on the dark surface. */
-  --brand-start: #406299;
-  --ink: #2b2740;
-  --ink-2: #5b557a;
-  --ink-3: #706b87;
-  --line: #ece2cf;
-  --line-2: #f4ead7;
+  --brand-start: #31538b;
+  --ink: #212033;
+  --ink-2: #585871;
+  --ink-3: #66667d;
+  --line: #9e937f;
+  --line-2: #e9deca;
 
   /* surface-tone tokens — "sand" container colors, derived from the accent. */
   --tint: #f6e9d2;
@@ -25,20 +25,25 @@
   --tint-ink: #6a6280;
 
   /* accents — derived from --coral so dark mode can rebalance contrast */
-  --coral: #ff7a59;
+  /* The accent. It used to be one value injected from app.jsx into both themes,
+     which forced a compromise: dark enough to carry white text, and therefore too
+     dark to read as text on a dark surface — 4.54:1 at both ends. It is two values
+     now, and --accent-on says what rides on top of it. */
+  --coral: #31538b;
+  --accent-on: #ffffff;
   --coral-ink: color-mix(in oklab, var(--coral), black 32%);
   --coral-soft: color-mix(in oklab, var(--coral), white 72%);
   --butter: #f6c453;
   --butter-soft: #fce8b3;
-  --sage: #6fc6a0;
-  --sage-soft: #d6f0e2;
+  --sage: #358d6a;
+  --sage-soft: #cef2e0;
   /* The done banner's second gradient stop. It was the literal #d8eef0 in
      both themes, so in dark mode a pale mint sat next to a dark one and the
      banner's own light text hit 1.43:1 on it. */
-  --sage-soft-2: #d8eef0;
+  --sage-soft-2: #caf1f0;
   /* Was #2f7a55, which measured 4.32:1 on those pale stops — just under the
      4.5 AA wants. */
-  --sage-ink: #2a6e4c;
+  --sage-ink: #1a6a4d;
   --sky: #8fb8ff;
 
   --radius: 18px;
@@ -62,17 +67,22 @@
 }
 
 [data-theme="dark"] {
-  --bg: #14121e;
-  --bg-2: #1c1929;
-  --surface: #221e33;
-  --surface-2: #1b1828;
-  --brand-start: #6aa3ff;
-  --ink: #f4ecd9;
-  --ink-2: #c5bdd5;
-  --ink-3: #8c87a3;
-  --line: #35304a;
-  --line-2: #2a2640;
+  --bg: #110f19;
+  --bg-2: #292639;
+  --surface: #211d2f;
+  --surface-2: #181624;
+  --brand-start: #73a5f5;
+  --ink: #f4ead8;
+  --ink-2: #c1bed5;
+  --ink-3: #9895ae;
+  --line: #74718b;
+  --line-2: #353248;
 
+  --coral: #7ba5e9;
+  --accent-on: #0c1421;
+  --sage-ink: #8cd7b4;
+  --sage-soft: #0a2b1e;
+  --sage-soft-2: #153528;
   --tint: color-mix(in oklab, var(--coral), black 70%);
   --tint-2: color-mix(in oklab, var(--coral), black 82%);
   --tint-line: color-mix(in oklab, var(--coral), black 55%);
@@ -82,11 +92,8 @@
   --coral-ink: color-mix(in oklab, var(--coral), white 26%);
   --coral-soft: color-mix(in oklab, var(--coral), black 72%);
   --butter-soft: color-mix(in oklab, var(--butter), black 75%);
-  --sage-ink: color-mix(in oklab, var(--sage), white 22%);
-  --sage-soft: color-mix(in oklab, var(--sage), black 70%);
   /* Derived from --sage so the gradient keeps its hue, and dark enough that
      the banner ink clears 4.5:1 on it instead of 1.43:1. */
-  --sage-soft-2: color-mix(in oklab, var(--sage), black 55%);
 }
 * { box-sizing: border-box; }
 
@@ -345,7 +352,7 @@ body::before {
   padding: 0 5px;
   border-radius: 999px;
   background: var(--coral);
-  color: white;
+  color: var(--accent-on);
   font-size: 11px;
   font-weight: 700;
   margin-left: 2px;
@@ -474,7 +481,7 @@ body::before {
     color-mix(in oklab, var(--coral), white 14%) 0%,
     var(--coral) 60%,
     color-mix(in oklab, var(--coral), black 8%) 100%);
-  color: white;
+  color: var(--accent-on);
   box-shadow:
     0 6px 14px -4px color-mix(in oklab, var(--coral), transparent 45%),
     0 1px 0 rgba(255,255,255,.35) inset,
@@ -764,7 +771,7 @@ body::before {
   background: linear-gradient(180deg,
     color-mix(in oklab, var(--coral), white 14%) 0%,
     var(--coral) 100%);
-  color: white;
+  color: var(--accent-on);
   border-color: transparent;
   box-shadow: 0 6px 14px -4px color-mix(in oklab, var(--coral), transparent 50%);
   transform: translateY(-1px);
@@ -905,7 +912,7 @@ body::before {
   font-size: 11.5px;
   font-weight: 600;
   background: var(--coral);
-  color: white;
+  color: var(--accent-on);
   padding: 3px 9px;
   border-radius: 999px;
   letter-spacing: .02em;
