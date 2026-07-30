@@ -1,8 +1,13 @@
 // icons.jsx — thin wrapper over the sprite in icons.svg.
 //
-// The 30 icons used to sit inline here: 42 KB of path data compiled into the
+// The icons used to sit inline here: 42 KB of path data compiled into the
 // bundle and re-downloaded whenever any app code changed. They now live in
 // icons.svg, which the browser fetches once and caches independently.
+//
+// 23 symbols. Seven more were carried for a while — download, flip,
+// folder-export, link, max, min, play — with nothing referencing them; the
+// name reaches the sprite by plain interpolation below, so an unquoted name
+// cannot be reached by any route.
 
 (function () {
   if (document.getElementById("icon-anim-styles")) return;

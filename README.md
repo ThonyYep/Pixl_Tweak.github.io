@@ -135,7 +135,7 @@ finished.
 | `convert.jsx` | Convert tab, file list, settings rail |
 | `other-tools.jsx` | Resize, Compress, Crop tabs |
 | `copy.jsx` | All ES/EN strings |
-| `icons.jsx` + `icons.svg` | `<Icon>` wrapper and the 30-symbol sprite it references |
+| `icons.jsx` + `icons.svg` | `<Icon>` wrapper and the 23-symbol sprite it references |
 | `styles.css` | Everything visual |
 | `vendor/` | MozJPEG and OxiPNG, vendored rather than pulled from a CDN so offline stays true |
 | `build.mjs` | esbuild transform → `bundle.js`, `selftest.bundle.js`; also injects the version and checks `vendor/` is fully precached |
