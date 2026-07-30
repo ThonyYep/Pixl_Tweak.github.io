@@ -33,7 +33,13 @@
   --butter-ink: #9a6f00;
   --sage: #6fc6a0;
   --sage-soft: #d6f0e2;
-  --sage-ink: #2f7a55;
+  /* The done banner's second gradient stop. It was the literal #d8eef0 in
+     both themes, so in dark mode a pale mint sat next to a dark one and the
+     banner's own light text hit 1.43:1 on it. */
+  --sage-soft-2: #d8eef0;
+  /* Was #2f7a55, which measured 4.32:1 on those pale stops — just under the
+     4.5 AA wants. */
+  --sage-ink: #2a6e4c;
   --sky: #8fb8ff;
   --sky-soft: #dfe9ff;
   --lilac: #c9a8ff;
@@ -83,6 +89,9 @@
   --butter-soft: color-mix(in oklab, var(--butter), black 75%);
   --sage-ink: color-mix(in oklab, var(--sage), white 22%);
   --sage-soft: color-mix(in oklab, var(--sage), black 70%);
+  /* Derived from --sage so the gradient keeps its hue, and dark enough that
+     the banner ink clears 4.5:1 on it instead of 1.43:1. */
+  --sage-soft-2: color-mix(in oklab, var(--sage), black 55%);
 }
 * { box-sizing: border-box; }
 
@@ -1004,7 +1013,7 @@ body::before {
 
 /* ─── done state ───────────────────────────────────────────────── */
 .done-banner {
-  background: linear-gradient(120deg, var(--sage-soft), #d8eef0);
+  background: linear-gradient(120deg, var(--sage-soft), var(--sage-soft-2));
   color: var(--sage-ink);
   border-radius: var(--radius);
   padding: 16px 18px;

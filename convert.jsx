@@ -332,8 +332,12 @@ function ConvertTab({ t, files, setFiles, mode, setMode, settings, setSettings, 
             <button className="btn ghost" onClick={() => setMode("idle")}>
               <Icon name="rotate" size={14} /> {t.convert.again}
             </button>
+              {/* --ink-3 is a global token tuned for page surfaces, not for this
+                  banner. On the banner it measured 2.85:1 in dark mode, so it
+                  inherits the banner's own ink instead. Not at reduced opacity:
+                  0.75 composites with the gradient and lands back at 3.15:1. */}
             {!allFailed && (
-              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, color:"var(--ink-3)", fontWeight:500 }}>
+              <span style={{ display:"flex", alignItems:"center", gap:5, fontSize:12, fontWeight:500 }}>
                 <Icon name="folder" size={13} /> {t.convert.downloads} ↓
               </span>
             )}
