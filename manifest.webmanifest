@@ -6,7 +6,7 @@
   "scope": "./",
   "display": "standalone",
   "background_color": "#fbf7ef",
-  "theme_color": "#6aa3ff",
+  "theme_color": "#406299",
   "icons": [
     {
       "src": "Pixl Tweak.png",

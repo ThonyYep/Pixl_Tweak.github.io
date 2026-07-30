@@ -6,6 +6,12 @@
   --bg-2: #f6e9d2;
   --surface: #ffffff;
   --surface-2: #fffaf2;
+  /* First stop of the wordmark's gradient TEXT. It cannot be --coral: that
+     one is a fill sitting behind white text, so it has to be dark, and a
+     dark stop on a dark surface left the wordmark at 2.63:1 where large
+     text needs 3. This flips per theme instead — 6.13:1 on white,
+     6.37:1 on the dark surface. */
+  --brand-start: #406299;
   --ink: #2b2740;
   --ink-2: #5b557a;
   --ink-3: #706b87;
@@ -58,6 +64,7 @@
   --bg-2: #1c1929;
   --surface: #221e33;
   --surface-2: #1b1828;
+  --brand-start: #6aa3ff;
   --ink: #f4ecd9;
   --ink-2: #c5bdd5;
   --ink-3: #8c87a3;
@@ -219,7 +226,7 @@ body::before {
   color: var(--ink);
 }
 .app-title h1 .accent {
-  background: linear-gradient(120deg, var(--coral) 0%, #f08a4b 50%, var(--butter) 100%);
+  background: linear-gradient(120deg, var(--brand-start) 0%, #f08a4b 50%, var(--butter) 100%);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;

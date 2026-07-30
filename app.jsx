@@ -4,7 +4,11 @@
 // reads at runtime. Tone, density, typeface and animation speed used to be
 // adjustable; their rules now sit in styles.css with the values baked in.
 const LOOK = {
-  accent: "#6aa3ff",
+  // Every white-on-accent surface derives from this. At the old #6aa3ff the
+  // primary button painted white text on a gradient whose lightest stop hit
+  // 2.18:1, well under the 4.5:1 WCAG AA asks for normal text. This is the
+  // same hue at 60% brightness, which clears it at 4.54:1.
+  accent: "#406299",
   radius: 18,
 };
 
