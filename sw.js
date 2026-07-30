@@ -4,7 +4,7 @@
 // support while four dependencies came from CDNs and nothing was cached, so
 // pulling the network gave a blank page. This is what backs the claim.
 
-const CACHE = "pixl-tweak-v2";
+const CACHE = "pixl-tweak-v3";
 
 // The app shell. Cross-origin entries are version-pinned and immutable, and
 // both CDNs send CORS headers, so these cache as real responses rather than
@@ -18,6 +18,7 @@ const SHELL = [
   "./worker.js",
   "./icons.svg",
   "./Pixl Tweak.png",
+  "./favicon.png",
   "./manifest.webmanifest",
   // The WASM encoders behind "max compression". They load on demand, so
   // leaving them out meant offline only worked if you had happened to use the

@@ -6,7 +6,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <!-- Favicon / browser tab -->
-  <link rel="icon" type="image/png" href="Pixl Tweak.png" />
+  <!-- 32px, 1.4 KB. This pointed at the 2048x2048 source, so every visit pulled
+       271 KB to paint a 16px tab icon. apple-touch-icon keeps the large one:
+       iOS wants a big square and only fetches it on add-to-home-screen. -->
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon.png" />
   <link rel="apple-touch-icon" href="Pixl Tweak.png" />
 
   <!-- Primary -->
@@ -20,7 +23,9 @@
   <meta property="og:image" content="https://thonyyep.github.io/Pixl_Tweak.github.io/Pixl%20Tweak.png" />
 
   <!-- Twitter / X card -->
-  <meta name="twitter:card" content="summary_large_image" />
+  <!-- summary, not summary_large_image: that card renders a ~2:1 banner and the
+       only social image here is a square, which it would crop or reject. -->
+  <meta name="twitter:card" content="summary" />
   <meta property="twitter:domain" content="thonyyep.github.io" />
   <meta property="twitter:url" content="https://thonyyep.github.io/Pixl_Tweak.github.io/" />
   <meta name="twitter:title" content="Pixl Tweak" />
